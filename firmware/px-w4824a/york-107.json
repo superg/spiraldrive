@@ -1,0 +1,19 @@
+{
+  "sha1": "e75fc1e16ed53a5e9a743ac15fdf1fe302695081",
+  "revision": "G107",
+  "comment": "PX-W4824A York 1.07: preserve signed lead-in positions when reusing buffered data",
+  "patches": [
+    {
+      "offset": "0x6c21a",
+      "old": "9c 00",
+      "new": "1a 01",
+      "comment": "Sign-extend newest descriptor position"
+    },
+    {
+      "offset": "0x6c242",
+      "old": "9c 00",
+      "new": "1a 01",
+      "comment": "Sign-extend oldest descriptor position"
+    }
+  ]
+}
