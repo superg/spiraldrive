@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SCSI_VENDOR_F5_MEDIA_STRATEGY_RESPONSE_H
+#define PLEXTOR_SCSI_VENDOR_F5_MEDIA_STRATEGY_RESPONSE_H
+
+void BuildVendorF5MediaStrategyResponse(void);
+
+#endif

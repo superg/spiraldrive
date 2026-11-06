@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Plextor 80251 differential simulator cases",
+  "type": "object",
+  "required": ["schema_version", "cases"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "function", "mode", "termination", "instruction_limit", "origin", "observe"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+          "function": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"},
+          "mode": {"enum": ["isolated", "integrated"]},
+          "termination": {"enum": ["ret", "reti", "eret", "nonreturn", "shared-tail"]},
+          "stock_return_kind": {"enum": ["ret", "eret", "reti"]},
+          "opaque_dependency_pointers": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "instruction_limit": {"type": "integer", "minimum": 1},
+          "minimum_states": {"type": "integer", "minimum": 0},
+          "require_expected_stop": {"type": "boolean"},
+          "forbidden_code_addresses": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"},
+            "uniqueItems": true
+          },
+          "launch_via_jump": {"type": "boolean"},
+          "second_call_memory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["address", "bytes"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"},
+                "bytes": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0, "maximum": 255}}
+              },
+              "additionalProperties": false
+            }
+          },
+          "repeat_nonreturn_first_sp": {"type": "integer", "minimum": 0, "maximum": 255},
+          "repeat_nonreturn_count": {"enum": [2, 3, 4]},
+          "pause_port_inputs": {
+            "type": "object",
+            "required": ["at", "ports"],
+            "properties": {
+              "at": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+              "ports": {"type": "array", "minItems": 1, "items": {
+                "type": "object", "required": ["port", "value"],
+                "properties": {
+                  "port": {"type": "integer", "minimum": 0, "maximum": 3},
+                  "value": {"type": "integer", "minimum": 0, "maximum": 255}
+                }, "additionalProperties": false
+              }}
+            }, "additionalProperties": false
+          },
+          "repeat_nonreturn_second_writes": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "required": ["space", "address", "value"],
+              "properties": {
+                "space": {"enum": ["SFR", "RAM", "CONTROLLER"]},
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "value": {"type": "integer", "minimum": 0, "maximum": 255}
+              }, "additionalProperties": false
+            }
+          },
+          "repeat_nonreturn_memory": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["address", "bytes"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"},
+                "bytes": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0, "maximum": 255}}
+              },
+              "additionalProperties": false
+            }
+          },
+          "wall_timeout": {"type": "integer", "minimum": 1},
+          "snapshot_near": {"type": "boolean"},
+          "snapshot_controller": {"type": "boolean"},
+          "ignored_stack": {
+            "type": "object",
+            "required": ["reason"],
+            "properties": {
+              "reason": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          },
+          "nonreturn_checkpoint": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"},
+          "reconstructed_nonreturn_checkpoint_symbol": {"type": "string", "minLength": 1},
+          "reconstructed_nonreturn_checkpoint_offset": {"type": "integer"},
+          "origin": {"type": "string", "minLength": 1},
+          "source_listing": {"type": "string", "minLength": 1},
+          "load_monitor": {"type": "boolean"},
+          "evidence": {"enum": ["smoke", "branch-covered", "differential-fuzzed", "scenario-tested", "exhaustive"]},
+          "seed": {"type": "integer", "minimum": 0},
+          "registers": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "stock_result_projections": {"$ref": "#/$defs/resultProjections"},
+          "reconstructed_result_projections": {"$ref": "#/$defs/resultProjections"},
+          "code_pointer_memory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "address"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "stock_value": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,8}$"},
+                "reconstructed_value": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,8}$"}
+              },
+              "dependentRequired": {
+                "stock_value": ["reconstructed_value"],
+                "reconstructed_value": ["stock_value"]
+              },
+              "additionalProperties": false
+            }
+          },
+          "code_pointer_direct": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "space", "address", "stock_value", "reconstructed_value"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "space": {"const": "EDATA"},
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "stock_value": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "reconstructed_value": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "expected_observations": {
+            "type": "object",
+            "properties": {
+              "registers": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+              "memory": {"type": "object", "additionalProperties": {"oneOf": [
+                {"type": "integer", "minimum": 0, "maximum": 255},
+                {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}},
+                {"type": "string", "pattern": "^0x[0-9a-fA-F]{6}$"}
+              ]}}
+            },
+            "additionalProperties": false
+          },
+          "observe": {
+            "type": "object",
+            "required": ["registers"],
+            "properties": {
+              "registers": {"type": "object", "additionalProperties": {"enum": [1, 2, 4]}}
+              ,"direct": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "space", "address"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "space": {"enum": ["CODE", "EDATA", "INTERNAL", "SFR", "RAM24", "XDATA"]},
+                    "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+              ,"memory": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "address", "length"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                    "length": {"type": "integer", "minimum": 1}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "flags": {"type": "object"},
+          "bits": {
+            "type": "array", "items": {
+              "type": "object", "required": ["address", "value"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "value": {"enum": [0, 1]}
+              }, "additionalProperties": false
+            }
+          },
+          "sfr": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["address", "value"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^0x(?:[89a-fA-F][0-9a-fA-F])$"},
+                "value": {"type": "integer", "minimum": 0, "maximum": 255}
+              },
+              "additionalProperties": false
+            }
+          },
+          "memory": {"type": "array"},
+          "ignored_memory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["address", "length", "reason"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "length": {"type": "integer", "minimum": 1},
+                "reason": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            }
+          },
+          "memory_relocations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "pointer_address", "stock_base", "reconstructed_base", "offset", "length"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "pointer_address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "stock_base": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "reconstructed_base": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "stock_result_base": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "reconstructed_result_base": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "offset": {"type": "integer", "minimum": 0},
+                "length": {"type": "integer", "minimum": 1}
+              },
+              "additionalProperties": false
+            }
+          },
+          "hardware_trace_capacity": {"type": "integer", "enum": [255, 1023]},
+          "hardware_reads": {"type": "array"},
+          "hardware_writes": {"type": "array"},
+          "timed_writes": {
+            "type": "array",
+            "maxItems": 255,
+            "items": {
+              "type": "object",
+              "required": ["after_states", "space", "address", "value"],
+              "properties": {
+                "after_states": {"type": "integer", "minimum": 1},
+                "space": {"enum": ["SFR", "RAM", "CONTROLLER"]},
+                "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+                "value": {"type": "integer", "minimum": 0, "maximum": 255}
+              },
+              "additionalProperties": false
+            }
+          },
+          "stock_hardware_reads": {"type": "array"},
+          "reconstructed_hardware_reads": {"type": "array"},
+          "stock_hardware_writes": {"type": "array"},
+          "reconstructed_hardware_writes": {"type": "array"},
+          "dependencies": {"type": "array"},
+          "code_patches": {"type": "array"},
+          "ignored_state": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "reason"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "reason": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "resultProjections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["address", "register", "width"],
+        "properties": {
+          "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,6}$"},
+          "register": {"type": "string", "pattern": "^(?:ACC|A|B|R[0-9]+|WR[0-9]+|DR[0-9]+|F0)$"},
+          "width": {"enum": [1, 2, 4]}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

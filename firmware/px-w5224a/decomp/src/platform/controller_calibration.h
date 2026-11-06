@@ -1,0 +1,21 @@
+#ifndef PLEXTOR_CONTROLLER_CALIBRATION_H
+#define PLEXTOR_CONTROLLER_CALIBRATION_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION ServiceControllerParameterEaEbCalibrationState(void);
+void PLEXTOR_NEAR_FUNCTION AdvanceControllerParameterEaEbCalibrationSequence(void);
+u8 PLEXTOR_NEAR_FUNCTION LoadOrCalibrateControllerParameterFC(void);
+u8 PLEXTOR_NEAR_FUNCTION RunControllerReadPathCalibrationAtTarget(s32 target_frame_position);
+u8 PLEXTOR_NEAR_FUNCTION ProbeControllerReadPathAtCurrentFrame(void);
+u8 PLEXTOR_NEAR_FUNCTION SelectControllerCalibrationCandidateFromFourSamples(void);
+u8 PLEXTOR_NEAR_FUNCTION SelectControllerCalibrationCandidateFromFourSamplesBody(void);
+u8 PLEXTOR_NEAR_FUNCTION SelectControllerCalibrationValueFromSampleWindow(void);
+u8 PLEXTOR_NEAR_FUNCTION SelectControllerCalibrationValueFromSampleWindowBody(void);
+void AccumulateMediaState5ControllerCalibrationSample(void);
+u8 RunControllerParameterCalibrationAndReferenceCapture(void);
+#if defined(PLEXTOR_HOST_TEST)
+u8 RunControllerParameterCalibrationAndReferenceCaptureForTest(void);
+#endif
+
+#endif

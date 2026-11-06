@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_TYPE2_CONTROLLER_RECORD_GEOMETRY_H
+#define PLEXTOR_TYPE2_CONTROLLER_RECORD_GEOMETRY_H
+
+void InitializeType2ControllerRecordGeometry(void);
+
+#endif

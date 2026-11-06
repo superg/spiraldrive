@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_PORT80F8_CALIBRATION_ATTEMPT_H
+#define PLEXTOR_CONTROLLER_PORT80F8_CALIBRATION_ATTEMPT_H
+
+#include "mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION RunControllerPort80F8CalibrationAttempt(u8 calibration_mode);
+
+#endif

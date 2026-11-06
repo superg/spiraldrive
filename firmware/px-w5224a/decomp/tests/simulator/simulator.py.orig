@@ -1,0 +1,4504 @@
+#!/usr/bin/env python3
+"""Prepare, run, compare, and report Keil 80251 differential tests."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+from dataclasses import dataclass
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
+
+
+SCHEMA_VERSION = 1
+CANONICAL_FUNCTION_COUNT = 1717
+VALID_EVIDENCE = {
+    "blocked-metadata",
+    "untested",
+    "smoke",
+    "branch-covered",
+    "differential-fuzzed",
+    "scenario-tested",
+    "exhaustive",
+    "mismatch",
+}
+TRACE_PREFIX = "PLEXTOR_SIM_JSON:"
+DEPENDENCY_TRACE_BASE = 0x012000
+DEPENDENCY_TRACE_RECORD_SIZE = 20
+DEPENDENCY_TRACE_MAX_RECORDS = 1023
+DEPENDENCY_TRACE_SCRATCH_FIRST = 0x0045D0
+DEPENDENCY_TRACE_SCRATCH_LAST = 0x0045E3
+HARDWARE_TRACE_BASE = 0x017000
+HARDWARE_TRACE_RECORD_BASE = HARDWARE_TRACE_BASE + 4
+HARDWARE_TRACE_ACTIVE = HARDWARE_TRACE_BASE + 3
+HARDWARE_TRACE_RECORD_SIZE = 8
+HARDWARE_TRACE_MAX_RECORDS = 255
+EXECUTION_DIAGNOSTIC_REGISTERS = ("DR0", "DR4", "DR8", "DR24", "DR28")
+EXECUTION_REGISTER_STATE_OFFSET = 8
+EXECUTION_STACK_STATE_OFFSET = (
+    EXECUTION_REGISTER_STATE_OFFSET + 4 * len(EXECUTION_DIAGNOSTIC_REGISTERS)
+)
+ADDRESS_TAG = re.compile(r"/\*\s*RAM:([0-9a-fA-F]{6})\s*\*/")
+ASSEMBLY_ADDRESS_TAG = re.compile(
+    r";\s*RAM:([0-9a-fA-F]{6})(?=\.|[ \t]*$)", re.M
+)
+FUNCTION_DEFINITION = re.compile(
+    r"(?m)^[\w\s\*]+?\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*"
+    r"(?:[A-Za-z_]\w*(?:\([^;{}]*\))?\s*)*\{"
+)
+FUNCTION_MACRO = re.compile(r"(?m)^\s*DEFINE_[A-Z0-9_]+\(\s*([A-Za-z_]\w*)\s*[,)]")
+ASSEMBLY_FUNCTION_DEFINITION = re.compile(
+    r"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\?*:\s*$"
+)
+
+
+class SimulatorError(RuntimeError):
+    """A deterministic simulator setup or execution failure."""
+
+
+@dataclass(frozen=True)
+class DependencyTracepoint:
+    address: int
+    canonical: str
+    parameters: tuple[tuple[str, str, int], ...]
+    identifier: int
+    return_kind: str | None = None
+    assignments: tuple[tuple[str, int], ...] = ()
+    return_thunk: int | None = None
+    stop: bool = False
+    code_parameters: tuple[str, ...] = ()
+    memory_writes: tuple[tuple[int, int], ...] = ()
+    bit_writes: tuple[tuple[int, int], ...] = ()
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def case_set_sha256(cases: list[dict[str, object]]) -> str:
+    normalized = [
+        {key: value for key, value in case.items() if key != "case_file"}
+        for case in cases
+    ]
+    return hashlib.sha256(
+        json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def case_definition_sha256(case: dict[str, object]) -> str:
+    normalized = {key: value for key, value in case.items() if key != "case_file"}
+    return hashlib.sha256(
+        json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def reusable_results(
+    previous: dict[str, object],
+    run_identity: dict[str, object],
+    cases: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    previous_identity = previous.get("run_identity")
+    if not isinstance(previous_identity, dict):
+        return []
+    exact_identity = previous_identity == run_identity
+    case_identity_fields = {
+        "case_ids_sha256",
+        "cases_sha256",
+        "case_count",
+        "shard_index",
+        "shard_count",
+    }
+    previous_global = {
+        key: value
+        for key, value in previous_identity.items()
+        if key not in case_identity_fields
+    }
+    current_global = {
+        key: value
+        for key, value in run_identity.items()
+        if key not in case_identity_fields
+    }
+    if not exact_identity and previous_global != current_global:
+        return []
+    case_hashes = {
+        str(case["id"]): case_definition_sha256(case) for case in cases
+    }
+    reusable = []
+    for raw_result in previous.get("results", []):
+        if not isinstance(raw_result, dict):
+            continue
+        case_id = str(raw_result.get("id", ""))
+        expected_hash = case_hashes.get(case_id)
+        if expected_hash is None:
+            continue
+        recorded_hash = raw_result.get("case_sha256")
+        if recorded_hash is None and not exact_identity:
+            continue
+        if recorded_hash is not None and recorded_hash != expected_hash:
+            continue
+        result = dict(raw_result)
+        result["case_sha256"] = expected_hash
+        reusable.append(result)
+    return reusable
+
+
+def wine_path(path: Path) -> str:
+    return "Z:" + str(path.resolve()).replace("/", "\\")
+
+
+def intel_hex(data: bytes, base_address: int, record_size: int = 32) -> str:
+    """Encode bytes as Intel HEX with 32-bit linear addresses."""
+    if not 0 <= base_address <= 0xFFFFFFFF:
+        raise ValueError("base address is outside the Intel HEX address space")
+    lines: list[str] = []
+    current_upper: int | None = None
+    offset = 0
+    while offset < len(data):
+        absolute = base_address + offset
+        upper = absolute >> 16
+        if upper != current_upper:
+            payload = upper.to_bytes(2, "big")
+            lines.append(_hex_record(0, 4, payload))
+            current_upper = upper
+        within_bank = absolute & 0xFFFF
+        count = min(record_size, len(data) - offset, 0x10000 - within_bank)
+        lines.append(_hex_record(within_bank, 0, data[offset : offset + count]))
+        offset += count
+    lines.append(":00000001FF")
+    return "\n".join(lines) + "\n"
+
+
+def read_intel_hex(path: Path) -> dict[int, int]:
+    memory: dict[int, int] = {}
+    upper = 0
+    for line_number, line in enumerate(path.read_text(encoding="ascii").splitlines(), 1):
+        if not line.startswith(":"):
+            raise SimulatorError(f"{path}:{line_number}: invalid Intel HEX record")
+        raw = bytes.fromhex(line[1:])
+        if len(raw) < 5 or len(raw) != raw[0] + 5 or sum(raw) & 0xFF:
+            raise SimulatorError(f"{path}:{line_number}: invalid Intel HEX checksum or length")
+        address = int.from_bytes(raw[1:3], "big")
+        record_type = raw[3]
+        payload = raw[4:-1]
+        if record_type == 0:
+            for offset, value in enumerate(payload):
+                memory[upper + address + offset] = value
+        elif record_type == 4:
+            upper = int.from_bytes(payload, "big") << 16
+        elif record_type == 1:
+            break
+    return memory
+
+
+def _hex_record(address: int, record_type: int, payload: bytes) -> str:
+    raw = bytes((len(payload), address >> 8, address & 0xFF, record_type)) + payload
+    checksum = (-sum(raw)) & 0xFF
+    return ":" + raw.hex().upper() + f"{checksum:02X}"
+
+
+def extract_source_functions(source_root: Path) -> list[dict[str, object]]:
+    functions: dict[int, dict[str, object]] = {}
+    paths = sorted(
+        (
+            *source_root.rglob("*.c"),
+            *source_root.rglob("*.h"),
+            *source_root.rglob("*.a51"),
+        )
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        tag_pattern = ASSEMBLY_ADDRESS_TAG if path.suffix == ".a51" else ADDRESS_TAG
+        tags = list(tag_pattern.finditer(text))
+        for index, tag in enumerate(tags):
+            end = tags[index + 1].start() if index + 1 < len(tags) else len(text)
+            segment = text[tag.end() : end]
+            segment = re.sub(r"/\*.*?\*/|//[^\n]*", "", segment, flags=re.S)
+            definition = FUNCTION_DEFINITION.search(segment)
+            macro = FUNCTION_MACRO.search(segment)
+            assembly = ASSEMBLY_FUNCTION_DEFINITION.search(segment)
+            address = int(tag.group(1), 16)
+            symbol = definition.group(1) if definition is not None else None
+            if symbol is None and macro is not None:
+                symbol = macro.group(1)
+            if symbol is None and assembly is not None:
+                symbol = assembly.group(1)
+            entry = {
+                "canonical_address": f"0x{address:06x}",
+                "symbol": symbol,
+                "source": str(path.relative_to(source_root.parent)),
+                "evidence": "untested",
+            }
+            previous = functions.get(address)
+            if previous is None:
+                functions[address] = entry
+            elif previous["symbol"] is None and symbol is not None:
+                functions[address] = entry
+            elif symbol is not None and previous["symbol"] != symbol:
+                aliases = previous.setdefault("source_aliases", [])
+                aliases.append({"symbol": symbol, "source": entry["source"]})
+    return [functions[address] for address in sorted(functions)]
+
+
+def parse_keil_map(path: Path) -> dict[str, int]:
+    """Read public symbol values from an L251 map without relying on columns."""
+    symbols: dict[str, int] = {}
+    for line in path.read_text(encoding="latin-1").splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and re.fullmatch(r"[0-9A-Fa-f]{6,8}H", fields[0]):
+            symbol = fields[-1].rstrip("?")
+            if re.fullmatch(r"[?A-Za-z_]\S*", symbol):
+                symbols.setdefault(symbol, int(fields[0][:-1], 16) & 0xFFFFFF)
+        elif len(fields) >= 2 and re.fullmatch(r"[0-9A-Fa-f]{6,8}H", fields[1]):
+            symbol = fields[0].rstrip("?")
+            symbols.setdefault(symbol, int(fields[1][:-1], 16) & 0xFFFFFF)
+    return symbols
+
+
+def load_cases(case_inputs: Path | list[Path]) -> list[dict[str, object]]:
+    cases: list[dict[str, object]] = []
+    inputs = [case_inputs] if isinstance(case_inputs, Path) else case_inputs
+    paths: list[Path] = []
+    for item in inputs:
+        if item.is_dir():
+            paths.extend(sorted(item.glob("*.json")))
+        else:
+            paths.append(item)
+    for path in paths:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if document.get("schema_version") != SCHEMA_VERSION:
+            raise SimulatorError(f"{path}: unsupported schema_version")
+        if "overrides" in document and "cases" not in document:
+            continue
+        raw_cases = document.get("cases")
+        if not isinstance(raw_cases, list):
+            raise SimulatorError(f"{path}: cases must be an array")
+        for case in raw_cases:
+            validate_case(case, path)
+            copied = dict(case)
+            copied["case_file"] = str(path)
+            cases.append(copied)
+    identifiers = [case["id"] for case in cases]
+    if len(identifiers) != len(set(identifiers)):
+        raise SimulatorError("simulator case identifiers must be unique")
+    return cases
+
+
+def validate_case(case: object, path: Path) -> None:
+    if not isinstance(case, dict):
+        raise SimulatorError(f"{path}: each case must be an object")
+    for key in ("id", "function", "mode", "termination", "origin"):
+        if key not in case:
+            raise SimulatorError(f"{path}: case is missing {key}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", str(case["id"])):
+        raise SimulatorError(f"{path}: invalid case id {case['id']!r}")
+    if not re.fullmatch(r"0x[0-9a-fA-F]{6}", str(case["function"])):
+        raise SimulatorError(f"{path}: function must be a qualified 24-bit value")
+    if case["mode"] not in ("isolated", "integrated"):
+        raise SimulatorError(f"{path}: invalid dependency mode")
+    if case.get("stock_return_kind") not in (None, "ret", "eret", "reti"):
+        raise SimulatorError(f"{path}: invalid stock_return_kind")
+    if not isinstance(case.get("stop_before_return", False), bool):
+        raise SimulatorError(f"{path}: stop_before_return must be Boolean")
+    ignored_stack = case.get("ignored_stack")
+    if ignored_stack is not None:
+        if (
+            not isinstance(ignored_stack, dict)
+            or set(ignored_stack) != {"reason"}
+            or not isinstance(ignored_stack["reason"], str)
+            or not ignored_stack["reason"]
+        ):
+            raise SimulatorError(f"{path}: ignored stack requires a reason")
+        if not case.get("stop_before_return", False):
+            raise SimulatorError(
+                f"{path}: ignored stack is only valid when stopping before return"
+            )
+    if not isinstance(case.get("snapshot_near", True), bool):
+        raise SimulatorError(f"{path}: snapshot_near must be Boolean")
+    if not isinstance(case.get("snapshot_controller", True), bool):
+        raise SimulatorError(f"{path}: snapshot_controller must be Boolean")
+    opaque_pointers = case.get("opaque_dependency_pointers", [])
+    if not isinstance(opaque_pointers, list) or any(
+        not isinstance(name, str) or not name for name in opaque_pointers
+    ):
+        raise SimulatorError(
+            f"{path}: opaque_dependency_pointers must be an array of names"
+        )
+    if case["termination"] == "nonreturn" and not re.fullmatch(
+        r"0x[0-9a-fA-F]{6}", str(case.get("nonreturn_checkpoint", ""))
+    ):
+        raise SimulatorError(f"{path}: nonreturn case requires a checkpoint")
+    reconstructed_checkpoint = case.get(
+        "reconstructed_nonreturn_checkpoint_symbol"
+    )
+    if reconstructed_checkpoint is not None and (
+        case["termination"] != "nonreturn"
+        or not isinstance(reconstructed_checkpoint, str)
+        or not reconstructed_checkpoint
+    ):
+        raise SimulatorError(
+            f"{path}: reconstructed nonreturn checkpoint requires a nonempty symbol"
+        )
+    reconstructed_checkpoint_offset = case.get(
+        "reconstructed_nonreturn_checkpoint_offset"
+    )
+    if reconstructed_checkpoint_offset is not None and (
+        case["termination"] != "nonreturn"
+        or not isinstance(reconstructed_checkpoint_offset, int)
+        or reconstructed_checkpoint_offset < 0
+    ):
+        raise SimulatorError(
+            f"{path}: reconstructed nonreturn checkpoint offset requires a "
+            "nonnegative integer on a nonreturn case"
+        )
+    if reconstructed_checkpoint is not None and reconstructed_checkpoint_offset is not None:
+        raise SimulatorError(
+            f"{path}: reconstructed nonreturn checkpoint symbol and offset are mutually exclusive"
+        )
+    limit = case.get("instruction_limit", 0)
+    if not isinstance(limit, int) or limit <= 0:
+        raise SimulatorError(f"{path}: instruction_limit must be positive")
+    ignored = case.get("ignored_state", [])
+    for item in ignored:
+        if not isinstance(item, dict) or not item.get("name") or not item.get("reason"):
+            raise SimulatorError(f"{path}: ignored state requires name and reason")
+    for region in case.get("ignored_memory", []):
+        if (
+            not isinstance(region, dict)
+            or set(region) != {"address", "length", "reason"}
+            or not isinstance(region["reason"], str)
+            or not region["reason"]
+        ):
+            raise SimulatorError(
+                f"{path}: ignored memory requires address, length, and reason"
+            )
+        address = int(str(region["address"]), 0)
+        length = int(region["length"])
+        if length <= 0 or not 0 <= address <= 0xFFFFFF - length + 1:
+            raise SimulatorError(f"{path}: ignored memory range is invalid")
+    for image in ("stock", "reconstructed"):
+        for projection in case.get(f"{image}_result_projections", []):
+            if (
+                not isinstance(projection, dict)
+                or set(projection) != {"address", "register", "width"}
+                or not isinstance(projection["register"], str)
+                or re.fullmatch(
+                    r"(?:ACC|A|B|R\d+|WR\d+|DR\d+|F0)",
+                    projection["register"],
+                )
+                is None
+                or int(projection["width"]) not in (1, 2, 4)
+            ):
+                raise SimulatorError(
+                    f"{path}: {image} result projection requires address, "
+                    "register, and width 1, 2, or 4"
+                )
+            address = int(str(projection["address"]), 0)
+            width = int(projection["width"])
+            captured = (
+                case.get("snapshot_near", True)
+                and 0x000420 <= address <= address + width - 1 <= 0x00FFFF
+            ) or (
+                case.get("snapshot_controller", True)
+                and 0x018000 <= address <= address + width - 1 <= 0x01FFFF
+            )
+            if not captured:
+                raise SimulatorError(
+                    f"{path}: {image} result projection must fit a captured RAM range"
+                )
+    code_pointer_names: set[str] = set()
+    for pointer in case.get("code_pointer_memory", []):
+        if (
+            not isinstance(pointer, dict)
+            or set(pointer) != {"name", "address"}
+            or not isinstance(pointer["name"], str)
+            or not pointer["name"]
+            or pointer["name"] in code_pointer_names
+        ):
+            raise SimulatorError(
+                f"{path}: code pointer memory requires unique name and address"
+            )
+        code_pointer_names.add(pointer["name"])
+        address = int(str(pointer["address"]), 0)
+        captured = (
+            case.get("snapshot_near", True)
+            and 0x000420 <= address <= address + 3 <= 0x00FFFF
+        ) or (
+            case.get("snapshot_controller", True)
+            and 0x018000 <= address <= address + 3 <= 0x01FFFF
+        )
+        if not captured:
+            raise SimulatorError(
+                f"{path}: code pointer memory must fit a captured RAM range"
+            )
+    for bit in case.get("bits", []):
+        if not isinstance(bit, dict) or "address" not in bit or "value" not in bit:
+            raise SimulatorError(f"{path}: initial bit requires address and value")
+        address = int(str(bit["address"]), 0)
+        if not 0 <= address < 0x80 or int(bit["value"]) not in (0, 1):
+            raise SimulatorError(
+                f"{path}: only internal BITS:0000-BITS:007f values 0 or 1 are supported"
+            )
+    for sfr in case.get("sfr", []):
+        if not isinstance(sfr, dict) or set(sfr) != {"address", "value"}:
+            raise SimulatorError(f"{path}: initial SFR requires address and value")
+        address = int(str(sfr["address"]), 0)
+        value = int(sfr["value"])
+        if not 0x80 <= address <= 0xFF or not 0 <= value <= 0xFF:
+            raise SimulatorError(
+                f"{path}: only byte SFR:0080-SFR:00ff initial values are supported"
+            )
+    for relocation in case.get("memory_relocations", []):
+        if not isinstance(relocation, dict):
+            raise SimulatorError(f"{path}: memory relocation must be an object")
+        required = {
+            "name",
+            "pointer_address",
+            "stock_base",
+            "reconstructed_base",
+            "offset",
+            "length",
+        }
+        optional = {"stock_result_base", "reconstructed_result_base"}
+        if not required <= set(relocation) or set(relocation) - required - optional:
+            raise SimulatorError(
+                f"{path}: memory relocation requires "
+                + ", ".join(sorted(required))
+            )
+        if not isinstance(relocation["name"], str) or not relocation["name"]:
+            raise SimulatorError(f"{path}: memory relocation requires a name")
+        pointer_address = int(str(relocation["pointer_address"]), 0)
+        stock_base = int(str(relocation["stock_base"]), 0)
+        reconstructed_base = int(str(relocation["reconstructed_base"]), 0)
+        stock_result_base = int(str(relocation.get("stock_result_base", stock_base)), 0)
+        reconstructed_result_base = int(
+            str(relocation.get("reconstructed_result_base", reconstructed_base)), 0
+        )
+        offset = int(relocation["offset"])
+        length = int(relocation["length"])
+        if not 0 <= pointer_address <= 0xFFFF - 3:
+            raise SimulatorError(
+                f"{path}: relocation pointer must be a four-byte near-RAM address"
+            )
+        if any(
+            not 0 <= address <= 0xFFFFFF
+            for address in (
+                stock_base,
+                reconstructed_base,
+                stock_result_base,
+                reconstructed_result_base,
+            )
+        ):
+            raise SimulatorError(f"{path}: relocation base is outside 24-bit RAM")
+        if offset < 0 or length <= 0:
+            raise SimulatorError(f"{path}: relocation offset/length is invalid")
+        comparison_first = reconstructed_result_base + offset
+        comparison_last = comparison_first + length - 1
+        captured = (
+            0x000420 <= comparison_first <= comparison_last <= 0x00FFFF
+            or 0x018000 <= comparison_first <= comparison_last <= 0x01FFFF
+        )
+        if not captured:
+            raise SimulatorError(
+                f"{path}: reconstructed relocation window must fit a captured RAM range"
+            )
+
+
+def materialize_memory_relocations(
+    case: dict[str, object],
+    image: str,
+    code_address_map: dict[int, int] | None = None,
+) -> dict[str, object]:
+    """Bind logical relocated buffers to one image's S251-safe physical RAM."""
+    if image not in ("stock", "reconstructed"):
+        raise SimulatorError(f"unsupported differential image {image!r}")
+    materialized = copy.deepcopy(case)
+    image_registers = materialized.get(f"{image}_registers", {})
+    if not isinstance(image_registers, dict):
+        raise SimulatorError(f"{case['id']}: {image}_registers must be an object")
+    registers = dict(materialized.get("registers", {}))
+    registers.update(image_registers)
+    materialized["registers"] = registers
+
+    image_internal_memory = materialized.get(f"{image}_internal_memory", [])
+    if not isinstance(image_internal_memory, list):
+        raise SimulatorError(
+            f"{case['id']}: {image}_internal_memory must be an array"
+        )
+    materialized["internal_memory"] = [
+        *materialized.get("internal_memory", []),
+        *copy.deepcopy(image_internal_memory),
+    ]
+    materialized["_result_projections"] = copy.deepcopy(
+        materialized.get(f"{image}_result_projections", [])
+    )
+    materialized["_code_address_map"] = dict(code_address_map or {})
+    for contract in ("hardware_reads", "hardware_writes"):
+        image_contract = f"{image}_{contract}"
+        if image_contract in materialized:
+            materialized[contract] = copy.deepcopy(materialized[image_contract])
+    memory = list(materialized.get("memory", []))
+    post_execution_copies: list[dict[str, int]] = []
+    for relocation in materialized.get("memory_relocations", []):
+        pointer_address = int(str(relocation["pointer_address"]), 0)
+        stock_base = int(str(relocation["stock_base"]), 0)
+        reconstructed_base = int(str(relocation["reconstructed_base"]), 0)
+        stock_result_base = int(str(relocation.get("stock_result_base", stock_base)), 0)
+        reconstructed_result_base = int(
+            str(relocation.get("reconstructed_result_base", reconstructed_base)), 0
+        )
+        selected_base = stock_base if image == "stock" else reconstructed_base
+        memory.append(
+            {
+                "address": f"0x{pointer_address:06x}",
+                "bytes": list(selected_base.to_bytes(4, "big")),
+            }
+        )
+        if image == "stock" and stock_result_base != reconstructed_result_base:
+            post_execution_copies.append(
+                {
+                    "source": stock_result_base + int(relocation["offset"]),
+                    "destination": reconstructed_result_base + int(relocation["offset"]),
+                    "length": int(relocation["length"]),
+                }
+            )
+    materialized["memory"] = memory
+    materialized["_post_execution_copies"] = post_execution_copies
+    return materialized
+
+
+def normalize_trace(
+    events: list[dict[str, object]], opaque_pointers: set[str] | None = None
+) -> list[dict[str, object]]:
+    normalized: list[dict[str, object]] = []
+    pointer_tokens: dict[int, str] = {}
+    for event in events:
+        item = dict(event)
+        item.pop("pc", None)
+        item.pop("image", None)
+        if "address" in item:
+            address = int(str(item["address"]), 0)
+            item["address"] = f"0x{address:06x}"
+        arguments = item.get("arguments")
+        if isinstance(arguments, dict) and opaque_pointers:
+            arguments = dict(arguments)
+            for name in opaque_pointers:
+                if name not in arguments:
+                    continue
+                pointer = int(arguments[name]) & 0xFFFF
+                arguments[name] = pointer_tokens.setdefault(
+                    pointer, f"opaque-pointer-{len(pointer_tokens)}"
+                )
+            item["arguments"] = arguments
+        normalized.append(item)
+    return normalized
+
+
+def classify_function(function: dict[str, object]) -> str:
+    return_kinds = {str(site).rsplit(":", 1)[-1] for site in function.get("return_sites", [])}
+    if "reti" in return_kinds:
+        return "interrupt"
+    if not return_kinds:
+        return "nonreturning"
+    hardware_reference = False
+    for reference in function.get("memory_references", []):
+        space, _, value = str(reference).partition(":")
+        if space in ("SFR", "BITS"):
+            hardware_reference = True
+            break
+        if space == "RAM":
+            address = int(value, 16)
+            if 0x018000 <= address <= 0x01FFFF:
+                hardware_reference = True
+                break
+    if hardware_reference:
+        return "hardware"
+    if function.get("calls"):
+        return "dependencies"
+    return "leaf"
+
+
+def build_inventory(metadata: dict[str, object]) -> dict[str, object]:
+    functions = []
+    counts: dict[str, int] = {}
+    for function in metadata["functions"]:
+        harness = classify_function(function)
+        counts[harness] = counts.get(harness, 0) + 1
+        functions.append(
+            {
+                "canonical_address": function["canonical_address"],
+                "symbol": function["symbol"],
+                "harness": harness,
+                "abi_complete": bool(function.get("abi_complete")),
+                "parameter_count": len(function.get("parameters", [])),
+                "return_sites": function.get("return_sites", []),
+                "dependency_count": len(function.get("calls", [])),
+            }
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "function_count": len(functions),
+        "harness_counts": dict(sorted(counts.items())),
+        "functions": functions,
+    }
+
+
+def compare_results(
+    stock: dict[str, object],
+    reconstructed: dict[str, object],
+    case: dict[str, object] | None = None,
+    stock_function_range: tuple[int, int] | None = None,
+    reconstructed_function_range: tuple[int, int] | None = None,
+) -> list[str]:
+    differences: list[str] = []
+    ignored_stack = (case or {}).get("ignored_stack") is not None
+    stock_termination = normalized_local_termination(
+        stock.get("termination"), stock_function_range
+    )
+    reconstructed_termination = normalized_local_termination(
+        reconstructed.get("termination"), reconstructed_function_range
+    )
+    for key in (
+        "termination",
+        "registers",
+        "flags",
+        "stack",
+        "memory",
+        "hardware_trace",
+    ):
+        if key == "stack" and ignored_stack:
+            continue
+        stock_value = stock_termination if key == "termination" else stock.get(key)
+        reconstructed_value = (
+            reconstructed_termination
+            if key == "termination"
+            else reconstructed.get(key)
+        )
+        if stock_value != reconstructed_value:
+            differences.append(f"{key}: stock={stock.get(key)!r} reconstructed={reconstructed.get(key)!r}")
+    opaque_pointers = set((case or {}).get("opaque_dependency_pointers", []))
+    stock_trace = normalize_trace(list(stock.get("trace", [])), opaque_pointers)
+    reconstructed_trace = normalize_trace(
+        list(reconstructed.get("trace", [])), opaque_pointers
+    )
+    if stock_trace != reconstructed_trace:
+        differences.append(f"trace: stock={stock_trace!r} reconstructed={reconstructed_trace!r}")
+    return differences
+
+
+def normalized_local_termination(
+    termination: object, function_range: tuple[int, int] | None
+) -> object:
+    if function_range is None or not isinstance(termination, str):
+        return termination
+    match = re.fullmatch(r"unexpected@0x([0-9a-fA-F]+)", termination)
+    if match is None:
+        return termination
+    address = int(match.group(1), 16)
+    start, end = function_range
+    if not start <= address < end:
+        return termination
+    return f"unexpected@function+0x{address - start:x}"
+
+
+def parse_trace_log(path: Path) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        marker = line.find(TRACE_PREFIX)
+        if marker < 0:
+            continue
+        payload = line[marker + len(TRACE_PREFIX) :].strip()
+        try:
+            event = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise SimulatorError(f"{path}:{line_number}: malformed trace marker: {exc}") from exc
+        if not isinstance(event, dict):
+            raise SimulatorError(f"{path}:{line_number}: trace event is not an object")
+        events.append(event)
+    return events
+
+
+def listing_function_block(text: str, symbol: str) -> str | None:
+    begin = re.search(
+        rf";\s*FUNCTION\s+{re.escape(symbol)}\?*\s+\(BEGIN\)", text, re.I
+    )
+    if begin is not None:
+        end = re.search(
+            rf";\s*FUNCTION\s+{re.escape(symbol)}\?*\s+\(END\)",
+            text[begin.end() :],
+            re.I,
+        )
+        if end is None:
+            return None
+        return text[begin.end() : begin.end() + end.start()]
+
+    label = re.search(
+        rf"(?mi)^[0-9a-f]{{6}}\s+\d+\s+{re.escape(symbol)}\?*:\s*$", text
+    )
+    if label is None:
+        return None
+    public_symbols = {
+        match.group(1).lower()
+        for match in re.finditer(
+            r"(?mi)\bPUBLIC\s+([a-z_][a-z0-9_]*)\?*", text
+        )
+    }
+    following_labels = re.finditer(
+        r"(?mi)^[0-9a-f]{6}\s+\d+\s+([a-z_][a-z0-9_]*)\?*:\s*$",
+        text[label.end() :],
+    )
+    following_label = next(
+        (
+            candidate
+            for candidate in following_labels
+            if not public_symbols
+            or candidate.group(1).lower() in public_symbols
+        ),
+        None,
+    )
+    end = label.end() + following_label.start() if following_label else len(text)
+    return text[label.start() : end]
+
+
+def parse_listing_instructions(path: Path, symbol: str) -> list[tuple[int, str]]:
+    text = path.read_text(encoding="latin-1")
+    block = listing_function_block(text, symbol)
+    if block is None:
+        raise SimulatorError(f"{path}: no listing block for {symbol!r}")
+    instructions = [
+        (int(match.group(1), 16), match.group(2).lower())
+        for match in re.finditer(
+            r"(?m)^(?![^\r\n]*:\s*$)([0-9A-Fa-f]{6})\s+"
+            r"[0-9A-Fa-fR ]+\s+([A-Za-z]+)\b",
+            block,
+        )
+    ]
+    if not instructions:
+        raise SimulatorError(f"{path}: no instructions for {symbol}")
+    entry = instructions[0][0]
+    return [(address - entry, mnemonic) for address, mnemonic in instructions]
+
+
+def parse_listing_returns(path: Path, symbol: str) -> list[tuple[int, str]]:
+    return [
+        (offset, mnemonic)
+        for offset, mnemonic in parse_listing_instructions(path, symbol)
+        if mnemonic in ("ret", "eret", "reti")
+    ]
+
+
+def canonical_nonreturn_checkpoint(function: dict[str, object]) -> int:
+    call_addresses = []
+    for description in function.get("call_sites", []):
+        match = re.fullmatch(
+            r"RAM:([0-9a-fA-F]+):RAM:[0-9a-fA-F]+", str(description)
+        )
+        if match is not None:
+            call_addresses.append(int(match.group(1), 16))
+    if call_addresses:
+        return min(call_addresses)
+    flows: list[tuple[int, int]] = []
+    for description in function.get("terminal_flows", []):
+        match = re.fullmatch(
+            r"RAM:([0-9a-fA-F]+):[^:]+:RAM:([0-9a-fA-F]+)",
+            str(description),
+        )
+        if match is not None:
+            flows.append((int(match.group(1), 16), int(match.group(2), 16)))
+    if not flows:
+        return int(str(function["canonical_address"]), 0)
+    back_edges = [source for source, target in flows if target <= source]
+    return max(back_edges or [source for source, _ in flows])
+
+
+def canonical_shared_tail_return_sites(
+    function: dict[str, object], metadata: dict[str, object]
+) -> list[tuple[int, str]]:
+    targets = []
+    for description in function.get("terminal_flows", []):
+        match = re.fullmatch(
+            r"RAM:[0-9a-fA-F]+:[^:]+:RAM:([0-9a-fA-F]+)",
+            str(description),
+        )
+        if match is not None:
+            targets.append(int(match.group(1), 16))
+    sites: list[tuple[int, str]] = []
+    for target in targets:
+        for candidate in metadata["functions"]:
+            for body_range in candidate.get("body_ranges", []):
+                match = re.fullmatch(
+                    r"RAM:([0-9a-fA-F]+)\.\.RAM:([0-9a-fA-F]+)",
+                    str(body_range),
+                )
+                if match is None or not int(match.group(1), 16) <= target <= int(
+                    match.group(2), 16
+                ):
+                    continue
+                for site in candidate.get("return_sites", []):
+                    site_address, kind = str(site).rsplit(":", 1)
+                    sites.append((int(site_address.split(":")[-1], 16), kind))
+    return sites
+
+
+def canonical_shared_tail_return_kind(
+    function: dict[str, object], metadata: dict[str, object]
+) -> str | None:
+    kinds = {
+        kind for _, kind in canonical_shared_tail_return_sites(function, metadata)
+    }
+    return next(iter(kinds)) if len(kinds) == 1 else None
+
+
+def parse_listing_return_offsets(path: Path, symbol: str, termination: str) -> list[int]:
+    offsets = [
+        offset
+        for offset, mnemonic in parse_listing_returns(path, symbol)
+        if mnemonic == termination
+    ]
+    if not offsets:
+        raise SimulatorError(f"{path}: {symbol} has no {termination.upper()} site")
+    return offsets
+
+
+def index_listings(directory: Path) -> dict[str, Path]:
+    result: dict[str, Path] = {}
+    c_pattern = re.compile(
+        r";\s*FUNCTION\s+([A-Za-z_][A-Za-z0-9_]*)\?*\s+\(BEGIN\)", re.I
+    )
+    assembly_pattern = re.compile(
+        r"(?m)^[0-9A-Fa-f]{6}\s+\d+\s+([A-Za-z_][A-Za-z0-9_]*)\?*:\s*$"
+    )
+    for path in sorted(directory.glob("*.lst")):
+        result[f"@source:{path.stem}"] = path
+        text = path.read_text(encoding="latin-1", errors="replace")
+        public_symbols = {
+            match.group(1).lower()
+            for match in re.finditer(
+                r"(?mi)\bPUBLIC\s+([a-z_][a-z0-9_]*)\?*", text
+            )
+        }
+        for match in c_pattern.finditer(text):
+            result.setdefault(match.group(1), path)
+        for match in assembly_pattern.finditer(text):
+            if not public_symbols or match.group(1).lower() in public_symbols:
+                result.setdefault(match.group(1), path)
+    return result
+
+
+def function_listing(
+    function: dict[str, object], symbol: str, listings: dict[str, Path]
+) -> Path | None:
+    source = function.get("source")
+    if source:
+        candidate = listings.get(f"@source:{Path(str(source)).stem}")
+        if candidate is not None and listing_function_module_rows(candidate, symbol):
+            return candidate
+    return listings.get(symbol)
+
+
+def metadata_function(document: dict[str, object], address: str) -> dict[str, object]:
+    for function in document.get("functions", []):
+        if function.get("canonical_address") == address:
+            return function
+    raise SimulatorError(f"simulator metadata has no function at {address}")
+
+
+def load_metadata(path: Path, stock: Path | None = None) -> dict[str, object]:
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if document.get("schema_version") != SCHEMA_VERSION:
+        raise SimulatorError(f"{path}: unsupported metadata schema")
+    functions = document.get("functions")
+    if not isinstance(functions, list) or len(functions) != CANONICAL_FUNCTION_COUNT:
+        count = len(functions) if isinstance(functions, list) else 0
+        raise SimulatorError(
+            f"{path}: expected {CANONICAL_FUNCTION_COUNT} functions, found {count}"
+        )
+    addresses = [item.get("canonical_address") for item in functions]
+    if len(addresses) != len(set(addresses)):
+        raise SimulatorError(f"{path}: duplicate canonical function addresses")
+    firmware = document.get("firmware")
+    if not isinstance(firmware, dict):
+        raise SimulatorError(f"{path}: missing firmware identity")
+    if stock is not None:
+        expected_size = int(firmware.get("size", 0))
+        if stock.stat().st_size != expected_size:
+            raise SimulatorError(
+                f"{stock}: expected {expected_size} bytes for firmware {firmware.get('version')}"
+            )
+        expected_hash = str(firmware.get("sha256", ""))
+        actual_hash = sha256(stock)
+        if actual_hash != expected_hash:
+            raise SimulatorError(
+                f"{stock}: SHA-256 {actual_hash} does not match metadata {expected_hash}"
+            )
+    return document
+
+
+def run_keil_driver(
+    driver: Path,
+    tool: Path,
+    root: Path,
+    name: str,
+    output: str,
+    arguments: list[str],
+    working_directory: Path,
+) -> None:
+    process = subprocess.run(
+        [
+            sys.executable,
+            str(driver),
+            "--tool",
+            str(tool),
+            "--root",
+            str(root),
+            "--name",
+            name,
+            "--output",
+            output,
+            "--",
+            *arguments,
+        ],
+        cwd=working_directory,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+        timeout=120,
+    )
+    if process.returncode != 0:
+        raise SimulatorError(f"Keil {name} failed:\n{process.stdout}")
+
+
+def build_stock_application(
+    stock: Path,
+    metadata: dict[str, object],
+    directory: Path,
+    driver: Path,
+    a251: Path,
+    l251: Path,
+    keil_root: Path,
+) -> Path:
+    image = stock.read_bytes()
+    directory.mkdir(parents=True, exist_ok=True)
+    source = directory / "stock_slice.a51"
+    placement: list[str] = []
+    lines = ["$MODSRC", "NAME STOCK_SLICE"]
+    for index, description in enumerate(metadata.get("body_ranges", [])):
+        first, last = str(description).split("..")
+        start = int(first.split(":")[-1], 16)
+        end = int(last.split(":")[-1], 16)
+        data = image[start - 0xF80000 : end - 0xF80000 + 1]
+        segment = f"STOCK_SLICE_{index}"
+        lines.extend((f"{segment} SEGMENT ECODE", f"RSEG {segment}"))
+        for offset in range(0, len(data), 16):
+            values = ",".join(f"0{value:02X}H" for value in data[offset : offset + 16])
+            lines.append(f"DB {values}")
+        placement.append(f"{segment}(0x{start:06X})")
+    lines.append("END")
+    source.write_text("\n".join(lines) + "\n", encoding="ascii")
+    run_keil_driver(
+        driver,
+        a251,
+        keil_root,
+        "stock_slice_assemble",
+        "stock_slice.obj",
+        [str(source), "MODSRC", "OBJECT(stock_slice.obj)", "PRINT(stock_slice.lst)"],
+        directory,
+    )
+    absolute = directory / "stock_slice.abs"
+    run_keil_driver(
+        driver,
+        l251,
+        keil_root,
+        "stock_slice_link",
+        absolute.name,
+        [
+            "stock_slice.obj",
+            "TO",
+            absolute.name,
+            "CLASSES(ECODE(0xF80000-0xFEFFFF))",
+            f"SEGMENTS({','.join(placement)})",
+            "NOOVERLAY",
+            "PRINT(stock_slice.map)",
+        ],
+        directory,
+    )
+    return absolute
+
+
+def build_full_stock_application(
+    stock: Path,
+    metadata: dict[str, object],
+    directory: Path,
+    driver: Path,
+    a251: Path,
+    l251: Path,
+    keil_root: Path,
+) -> Path:
+    image = bytearray(stock.read_bytes())
+    if len(image) != 0x80000:
+        raise SimulatorError(f"{stock}: expected 0x80000-byte firmware image")
+    directory.mkdir(parents=True, exist_ok=True)
+    source = directory / "stock_firmware.a51"
+    placement: list[str] = []
+    lines = ["$MODSRC", "NAME STOCK_FIRMWARE"]
+    chunk_size = 0x8000
+    for index, start in enumerate(range(0, len(image), chunk_size)):
+        address = 0xF80000 + start
+        segment = f"STOCK_FIRMWARE_{index:02d}"
+        lines.extend((f"{segment} SEGMENT ECODE", f"RSEG {segment}"))
+        chunk = image[start : start + chunk_size]
+        for offset in range(0, len(chunk), 16):
+            values = ",".join(f"0{value:02X}H" for value in chunk[offset : offset + 16])
+            lines.append(f"DB {values}")
+        placement.append(f"{segment}(0x{address:06X})")
+    lines.append("END")
+    source.write_text("\n".join(lines) + "\n", encoding="ascii")
+    run_keil_driver(
+        driver,
+        a251,
+        keil_root,
+        "stock_firmware_assemble",
+        "stock_firmware.obj",
+        [str(source), "MODSRC", "OBJECT(stock_firmware.obj)", "PRINT(stock_firmware.lst)"],
+        directory,
+    )
+    absolute = directory / "stock_firmware.abs"
+    run_keil_driver(
+        driver,
+        l251,
+        keil_root,
+        "stock_firmware_link",
+        absolute.name,
+        [
+            "stock_firmware.obj",
+            "TO",
+            absolute.name,
+            "CLASSES(ECODE(0xF80000-0xFFFFFF))",
+            f"SEGMENTS({','.join(placement)})",
+            "NOOVERLAY",
+            "PRINT(stock_firmware.map)",
+        ],
+        directory,
+    )
+    return absolute
+
+
+def build_full_memory_application(
+    image_path: Path,
+    directory: Path,
+    driver: Path,
+    a251: Path,
+    l251: Path,
+    keil_root: Path,
+) -> Path:
+    """Build fixed flash views used by 80251 huge-pointer data reads."""
+    image = image_path.read_bytes()
+    if len(image) != 0x80000:
+        raise SimulatorError(f"{image_path}: expected 0x80000-byte firmware image")
+    directory.mkdir(parents=True, exist_ok=True)
+    absolute = directory / "firmware_memory.abs"
+    provenance = directory / "firmware_memory.sha256"
+    # The main image does not contain the separately programmed configuration
+    # flash.  An erased device is the only deterministic default available to
+    # a caller that supplies just MONT_104.bin; individual cases can overlay
+    # configuration bytes when they need another profile.
+    configuration = bytes((0xFF,)) * 0x61
+    identity = memory_application_identity(image)
+    if absolute.is_file() and provenance.is_file():
+        if provenance.read_text(encoding="ascii").strip() == identity:
+            return absolute
+
+    source = directory / "firmware_memory.a51"
+    placement = ["CONFIGURATION_FLASH(0xF7C000)"]
+    lines = ["$MODSRC", "NAME FIRMWARE_MEMORY"]
+    lines.extend(("CONFIGURATION_FLASH SEGMENT HCONST", "RSEG CONFIGURATION_FLASH"))
+    for offset in range(0, len(configuration), 16):
+        values = ",".join(
+            f"0{value:02X}H" for value in configuration[offset : offset + 16]
+        )
+        lines.append(f"DB {values}")
+    chunk_size = 0x8000
+    for index, start in enumerate(range(0, len(image), chunk_size)):
+        address = 0xF80000 + start
+        segment = f"FIRMWARE_MEMORY_{index:02d}"
+        lines.extend((f"{segment} SEGMENT HCONST", f"RSEG {segment}"))
+        chunk = image[start : start + chunk_size]
+        for offset in range(0, len(chunk), 16):
+            values = ",".join(f"0{value:02X}H" for value in chunk[offset : offset + 16])
+            lines.append(f"DB {values}")
+        placement.append(f"{segment}(0x{address:06X})")
+    lines.append("END")
+    source.write_text("\n".join(lines) + "\n", encoding="ascii")
+    run_keil_driver(
+        driver,
+        a251,
+        keil_root,
+        "firmware_memory_assemble",
+        "firmware_memory.obj",
+        [str(source), "MODSRC", "OBJECT(firmware_memory.obj)", "PRINT(firmware_memory.lst)"],
+        directory,
+    )
+    run_keil_driver(
+        driver,
+        l251,
+        keil_root,
+        "firmware_memory_link",
+        absolute.name,
+        [
+            "firmware_memory.obj",
+            "TO",
+            absolute.name,
+            "CLASSES(HCONST(0xF7C000-0xFFFFFF))",
+            f"SEGMENTS({','.join(placement)})",
+            "NOOVERLAY",
+            "PRINT(firmware_memory.map)",
+        ],
+        directory,
+    )
+    provenance.write_text(identity + "\n", encoding="ascii")
+    return absolute
+
+
+def memory_application_identity(image: bytes) -> str:
+    configuration = bytes((0xFF,)) * 0x61
+    return hashlib.sha256(
+        b"plextor-memory-view-v2\0" + configuration + image
+    ).hexdigest()
+
+
+def validate_memory_application(image_path: Path, application: Path) -> None:
+    image = image_path.read_bytes()
+    if len(image) != 0x80000:
+        raise SimulatorError(f"{image_path}: expected 0x80000-byte firmware image")
+    provenance = application.with_name("firmware_memory.sha256")
+    if not provenance.is_file():
+        raise SimulatorError(
+            f"{application}: missing firmware_memory.sha256 provenance"
+        )
+    expected = memory_application_identity(image)
+    actual = provenance.read_text(encoding="ascii").strip()
+    if actual != expected:
+        raise SimulatorError(
+            f"{application}: memory view does not match {image_path}"
+        )
+
+
+def debugger_path(path: Path) -> str:
+    return wine_path(path).replace("\\", "\\\\")
+
+
+def debugger_address(address: int) -> str:
+    """Render an unambiguous 24-bit CPU address for S251 commands."""
+    return f"C:0x{address & 0xFFFFFF:06x}"
+
+
+def debugger_data_address(address: int) -> str:
+    if 0 <= address <= 0xFFFF:
+        return f"E:0x{address:06x}"
+    return f"0x{address:06x}"
+
+
+def normalize_edata_snapshot(memory: dict[int, int]) -> dict[int, int]:
+    return {
+        address - 0xF2000000 if address >= 0xF2000000 else address: value
+        for address, value in memory.items()
+    }
+
+
+def decode_dependency_trace(
+    path: Path,
+    tracepoints: list[DependencyTracepoint],
+    code_address_map: dict[int, int] | None = None,
+) -> list[dict[str, object]]:
+    memory = normalize_edata_snapshot(read_intel_hex(path))
+    count = (memory.get(DEPENDENCY_TRACE_BASE, 0) << 8) | memory.get(
+        DEPENDENCY_TRACE_BASE + 1, 0
+    )
+    if memory.get(DEPENDENCY_TRACE_BASE + 2, 0) != 0:
+        raise SimulatorError(
+            f"{path}: dependency trace exceeded {DEPENDENCY_TRACE_MAX_RECORDS} events"
+        )
+    if count > DEPENDENCY_TRACE_MAX_RECORDS:
+        raise SimulatorError(f"{path}: dependency trace count {count} is invalid")
+    events = []
+    for record_index in range(count):
+        base = (
+            DEPENDENCY_TRACE_BASE
+            + 4
+            + record_index * DEPENDENCY_TRACE_RECORD_SIZE
+        )
+        dependency_identifier = (
+            (memory.get(base, 0xFF) << 8) | memory.get(base + 1, 0xFF)
+        )
+        matching = [
+            tracepoint
+            for tracepoint in tracepoints
+            if tracepoint.identifier == dependency_identifier
+        ]
+        if len(matching) != 1:
+            raise SimulatorError(
+                f"{path}: dependency trace identifier {dependency_identifier} is invalid"
+            )
+        tracepoint = matching[0]
+        argument_count = memory.get(base + 2, 0xFF)
+        if argument_count != len(tracepoint.parameters):
+            raise SimulatorError(
+                f"{path}: dependency trace argument count {argument_count} is invalid"
+            )
+        arguments = {}
+        for parameter_index, (name, _, width) in enumerate(tracepoint.parameters):
+            value = 0
+            for offset in range(4):
+                value = (value << 8) | memory.get(
+                    base + 4 + parameter_index * 4 + offset, 0
+                )
+            value &= (1 << (width * 8)) - 1
+            if name in tracepoint.code_parameters:
+                value = (code_address_map or {}).get(value, value)
+            arguments[name] = value
+        events.append(
+            {
+                "operation": "call",
+                "function": tracepoint.canonical,
+                "arguments": arguments,
+            }
+        )
+    return events
+
+
+def hardware_debugger_address(space: str, address: int) -> str:
+    if space == "SFR":
+        return f"D:0x{address:02x}"
+    if space == "CONTROLLER":
+        return debugger_data_address(address) if address <= 0xFFFF else f"0x{address:06x}"
+    if space == "RAM":
+        return debugger_data_address(address)
+    raise SimulatorError(f"unsupported hardware address space {space!r}")
+
+
+def hardware_space_identifier(space: str) -> int:
+    identifiers = {"SFR": 1, "CONTROLLER": 2, "RAM": 3}
+    try:
+        return identifiers[space]
+    except KeyError as error:
+        raise SimulatorError(f"unsupported hardware address space {space!r}") from error
+
+
+def expanded_hardware_reads(case: dict[str, object]) -> list[dict[str, object]]:
+    expanded: list[dict[str, object]] = []
+    for item in case.get("hardware_reads", []):
+        if not isinstance(item, dict):
+            raise SimulatorError(f"{case['id']}: hardware read must be an object")
+        space = str(item.get("space", "")).upper()
+        address = int(str(item.get("address", "")), 0)
+        width = int(item.get("width", 1))
+        if width != 1:
+            raise SimulatorError(
+                f"{case['id']}: only byte hardware reads are currently supported"
+            )
+        raw_values = item.get("values")
+        if raw_values is None:
+            raw_values = [item.get("value")]
+        if not isinstance(raw_values, list) or any(value is None for value in raw_values):
+            raise SimulatorError(f"{case['id']}: hardware read requires value or values")
+        for value in raw_values:
+            parsed_value = int(value)
+            if not 0 <= parsed_value <= 0xFF:
+                raise SimulatorError(f"{case['id']}: hardware read byte is out of range")
+            expanded.append(
+                {
+                    "operation": "read",
+                    "space": space,
+                    "address": f"0x{address:06x}",
+                    "width": width,
+                    "value": parsed_value,
+                }
+            )
+    return expanded
+
+
+def expanded_hardware_writes(case: dict[str, object]) -> list[dict[str, object]]:
+    expanded: list[dict[str, object]] = []
+    for item in case.get("hardware_writes", []):
+        if not isinstance(item, dict):
+            raise SimulatorError(f"{case['id']}: hardware write must be an object")
+        space = str(item.get("space", "")).upper()
+        address = int(str(item.get("address", "")), 0)
+        width = int(item.get("width", 1))
+        if width != 1:
+            raise SimulatorError(
+                f"{case['id']}: only byte hardware writes are currently supported"
+            )
+        raw_values = item.get("values")
+        if raw_values is None:
+            raw_values = [item.get("value")]
+        if not isinstance(raw_values, list) or any(value is None for value in raw_values):
+            raise SimulatorError(f"{case['id']}: hardware write requires value or values")
+        for value in raw_values:
+            parsed_value = int(value)
+            if not 0 <= parsed_value <= 0xFF:
+                raise SimulatorError(f"{case['id']}: hardware write byte is out of range")
+            expanded.append(
+                {
+                    "operation": "write",
+                    "space": space,
+                    "address": f"0x{address:06x}",
+                    "width": width,
+                    "value": parsed_value,
+                }
+            )
+    return expanded
+
+
+def render_hardware_read_signals(
+    case: dict[str, object],
+) -> tuple[list[str], list[str]]:
+    reads = expanded_hardware_reads(case)
+    grouped: dict[tuple[str, int], list[int]] = {}
+    for event in reads:
+        key = (str(event["space"]), int(str(event["address"]), 0))
+        grouped.setdefault(key, []).append(int(event["value"]))
+    definitions: list[str] = []
+    starts: list[str] = []
+    for index, ((space, address), values) in enumerate(grouped.items()):
+        name = f"PlextorHardwareRead{index}"
+        target = hardware_debugger_address(space, address)
+        space_identifier = hardware_space_identifier(space)
+        definitions.extend(
+            (
+                f"signal void {name}(void) {{",
+                "  unsigned int index;",
+                "  unsigned int event;",
+                "  index = 0;",
+                "  while (1) {",
+                f"    rwatch({target});",
+                f"    if (_RBYTE(0x{HARDWARE_TRACE_ACTIVE:06x}) == 0) {{",
+                "      continue;",
+                "    }",
+                "    if (_RBYTE(0x017002) == 2) {",
+                "      continue;",
+                "    }",
+            )
+        )
+        for value_index, value in enumerate(values):
+            condition = "if" if value_index == 0 else "else if"
+            definitions.extend(
+                (
+                    f"    {condition} (index == {value_index}) {{",
+                    "      _WBYTE(0x017002, 1);",
+                    f"      _WBYTE({target}, {value});",
+                    "      _WBYTE(0x017002, 0);",
+                    "      event = _RBYTE(0x017000);",
+                    "      if (event < 255) {",
+                    "        _WBYTE(0x017004 + event * 8, 1);",
+                    f"        _WBYTE(0x017005 + event * 8, {space_identifier});",
+                    f"        _WBYTE(0x017006 + event * 8, {(address >> 24) & 0xFF});",
+                    f"        _WBYTE(0x017007 + event * 8, {(address >> 16) & 0xFF});",
+                    f"        _WBYTE(0x017008 + event * 8, {(address >> 8) & 0xFF});",
+                    f"        _WBYTE(0x017009 + event * 8, {address & 0xFF});",
+                    "        _WBYTE(0x01700a + event * 8, 1);",
+                    f"        _WBYTE(0x01700b + event * 8, {value});",
+                    "        _WBYTE(0x017000, event + 1);",
+                    "      }",
+                    "      else {",
+                    "        _WBYTE(0x017001, 1);",
+                    "      }",
+                    "      index++;",
+                    "    }",
+                )
+            )
+        fallback = values[-1]
+        definitions.extend(
+            (
+                "    else {",
+                "      _WBYTE(0x017002, 1);",
+                f"      _WBYTE({target}, {fallback});",
+                "      _WBYTE(0x017002, 0);",
+                f"      if (index == {len(values)}) {{",
+                "        event = _RBYTE(0x017000);",
+                "        if (event < 255) {",
+                "          _WBYTE(0x017004 + event * 8, 3);",
+                f"          _WBYTE(0x017005 + event * 8, {space_identifier});",
+                f"          _WBYTE(0x017006 + event * 8, {(address >> 24) & 0xFF});",
+                f"          _WBYTE(0x017007 + event * 8, {(address >> 16) & 0xFF});",
+                f"          _WBYTE(0x017008 + event * 8, {(address >> 8) & 0xFF});",
+                f"          _WBYTE(0x017009 + event * 8, {address & 0xFF});",
+                "          _WBYTE(0x01700a + event * 8, 1);",
+                f"          _WBYTE(0x01700b + event * 8, {fallback});",
+                "          _WBYTE(0x017000, event + 1);",
+                "        }",
+                "        else {",
+                "          _WBYTE(0x017001, 1);",
+                "        }",
+                "      }",
+                "      index++;",
+                "    }",
+                "  }",
+                "}",
+            )
+        )
+        starts.append(f"{name}()")
+    return definitions, starts
+
+
+def render_hardware_write_signals(
+    case: dict[str, object], first_index: int
+) -> tuple[list[str], list[str]]:
+    writes = expanded_hardware_writes(case)
+    keys: list[tuple[str, int]] = []
+    for event in writes:
+        key = (str(event["space"]), int(str(event["address"]), 0))
+        if key not in keys:
+            keys.append(key)
+    definitions: list[str] = []
+    starts: list[str] = []
+    for offset, (space, address) in enumerate(keys):
+        name = f"PlextorHardwareWrite{first_index + offset}"
+        target = hardware_debugger_address(space, address)
+        space_identifier = hardware_space_identifier(space)
+        definitions.extend(
+            (
+                f"signal void {name}(void) {{",
+                "  unsigned int event;",
+                "  unsigned int value;",
+                "  while (1) {",
+                f"    wwatch({target});",
+                f"    if (_RBYTE(0x{HARDWARE_TRACE_ACTIVE:06x}) == 0) {{",
+                "      continue;",
+                "    }",
+                "    if (_RBYTE(0x017002) == 1) {",
+                "      continue;",
+                "    }",
+                "    _WBYTE(0x017002, 2);",
+                f"    value = _RBYTE({target});",
+                "    _WBYTE(0x017002, 0);",
+                "    event = _RBYTE(0x017000);",
+                "    if (event < 255) {",
+                "      _WBYTE(0x017004 + event * 8, 2);",
+                f"      _WBYTE(0x017005 + event * 8, {space_identifier});",
+                f"      _WBYTE(0x017006 + event * 8, {(address >> 24) & 0xFF});",
+                f"      _WBYTE(0x017007 + event * 8, {(address >> 16) & 0xFF});",
+                f"      _WBYTE(0x017008 + event * 8, {(address >> 8) & 0xFF});",
+                f"      _WBYTE(0x017009 + event * 8, {address & 0xFF});",
+                "      _WBYTE(0x01700a + event * 8, 1);",
+                "      _WBYTE(0x01700b + event * 8, value);",
+                "      _WBYTE(0x017000, event + 1);",
+                "    }",
+                "    else {",
+                "      _WBYTE(0x017001, 1);",
+                "    }",
+                "  }",
+                "}",
+            )
+        )
+        starts.append(f"{name}()")
+    return definitions, starts
+
+
+def render_hardware_signals(
+    case: dict[str, object],
+) -> tuple[list[str], list[str]]:
+    read_definitions, read_starts = render_hardware_read_signals(case)
+    write_definitions, write_starts = render_hardware_write_signals(
+        case, len(read_starts)
+    )
+    return read_definitions + write_definitions, read_starts + write_starts
+
+
+def decode_hardware_trace(
+    case: dict[str, object], path: Path, validate_contract: bool = True
+) -> list[dict[str, object]]:
+    memory = read_intel_hex(path)
+    count = memory.get(HARDWARE_TRACE_BASE, 0)
+    if memory.get(HARDWARE_TRACE_BASE + 1, 0) != 0:
+        raise SimulatorError(f"{case['id']}: hardware event trace overflowed")
+    events = []
+    operation_names = {1: "read", 2: "write", 3: "read-exhausted"}
+    space_names = {1: "SFR", 2: "CONTROLLER", 3: "RAM"}
+    for index in range(count):
+        base = HARDWARE_TRACE_RECORD_BASE + index * HARDWARE_TRACE_RECORD_SIZE
+        operation = operation_names.get(memory.get(base, 0), "unknown")
+        space = space_names.get(memory.get(base + 1, 0), "UNKNOWN")
+        address = 0
+        for offset in range(4):
+            address = (address << 8) | memory.get(base + 2 + offset, 0)
+        events.append(
+            {
+                "operation": operation,
+                "space": space,
+                "address": f"0x{address:06x}",
+                "width": memory.get(base + 6, 0),
+                "value": memory.get(base + 7, 0),
+            }
+        )
+    exhausted = [event for event in events if event.get("operation") == "read-exhausted"]
+    if exhausted:
+        raise SimulatorError(
+            f"{case['id']}: exhausted hardware read responses at "
+            + ", ".join(
+                f"{event.get('space')}:{event.get('address')}" for event in exhausted
+            )
+        )
+    if validate_contract:
+        reads = [event for event in events if event.get("operation") == "read"]
+        expected_reads = expanded_hardware_reads(case)
+        if reads != expected_reads:
+            raise SimulatorError(
+                f"{case['id']}: hardware read trace differs: expected={expected_reads!r}, actual={reads!r}"
+            )
+        writes = [event for event in events if event.get("operation") == "write"]
+        expected_writes = expanded_hardware_writes(case)
+        if writes != expected_writes:
+            raise SimulatorError(
+                f"{case['id']}: hardware write trace differs: expected={expected_writes!r}, actual={writes!r}"
+            )
+    return events
+
+
+def render_execution_script(
+    case: dict[str, object],
+    entry: int,
+    stop: int,
+    result_path: Path,
+    overlay: Path | None,
+    monitor: Path | None,
+    machine_termination: str | None = None,
+    prebuilt_trampoline: tuple[int, int] | None = None,
+    dependency_stubs: list[tuple[int, str, list[tuple[str, int]]]] | None = None,
+    dependency_stops: list[int] | None = None,
+    return_stops: list[int] | None = None,
+    code_patches: list[tuple[int, list[int]]] | None = None,
+    dependency_tracepoints: list[DependencyTracepoint] | None = None,
+    dependency_trace_overlay: Path | None = None,
+    dependency_trace_shims: dict[int, int] | None = None,
+) -> tuple[str, int | list[int]]:
+    base = 0x017F00
+    state_base = base + 0x20
+    code_snapshot = result_path.with_name("code-before-run.hex")
+    debugger_log = result_path.with_name("debugger.log")
+    ram_before_near = result_path.with_name("ram-before-near.hex")
+    ram_before_controller = result_path.with_name("ram-before-controller.hex")
+    ram_after_near = result_path.with_name("ram-after-near.hex")
+    ram_after_controller = result_path.with_name("ram-after-controller.hex")
+    dependency_trace = result_path.with_name("dependency-trace.hex")
+    hardware_trace = result_path.with_name("hardware-trace.hex")
+    observe = case.get("observe", {}).get("registers", {})
+    if not isinstance(observe, dict):
+        raise SimulatorError(f"{case['id']}: observe.registers must be an object")
+    hardware_signal_definitions, hardware_signal_starts = render_hardware_signals(case)
+    lines = [
+        *hardware_signal_definitions,
+        "MAP 0x000000,0x00ffff READ WRITE EXEC",
+        "MAP E:0x0420,E:0xffff READ WRITE",
+        "MAP 0x010000,0x017fff READ WRITE EXEC",
+        "MAP 0x018000,0x01ffff READ WRITE",
+        "MAP 0x020000,0xf6ffff READ WRITE",
+        "MAP E:0xf80000,E:0xffffff READ WRITE EXEC",
+    ]
+    harness_lines: list[str] = []
+    execution_entry = entry
+    execution_stop = stop
+    trampoline_snapshot_end: int | None = None
+    physical_return = machine_termination or str(case["termination"])
+    if prebuilt_trampoline is not None:
+        execution_entry, execution_stop = prebuilt_trampoline
+    elif physical_return == "eret":
+        trampoline = 0xF70000
+        lines.append("MAP 0xf70000,0xf700ff READ WRITE EXEC")
+        for offset, value in enumerate(
+            (0x9A, (entry >> 16) & 0xFF, (entry >> 8) & 0xFF, entry & 0xFF)
+        ):
+            harness_lines.append(
+                f"_WBYTE(0x{trampoline + offset:06x}, 0x{value:02x})"
+            )
+        execution_entry = trampoline
+        execution_stop = trampoline + 4
+        trampoline_snapshot_end = trampoline + 4
+    elif physical_return == "ret":
+        trampoline = (entry & 0xFF0000) | 0xFFFC
+        harness_lines.extend(
+            (
+                "SP = 0x60",
+                f"_WBYTE(I:0x61, 0x{trampoline & 0xFF:02x})",
+                f"_WBYTE(I:0x62, 0x{(trampoline >> 8) & 0xFF:02x})",
+                "SP = 0x62",
+            )
+        )
+        execution_entry = entry
+        execution_stop = trampoline
+    elif physical_return == "reti":
+        # S251 tracks interrupt-in-service state internally and provides no
+        # debugger assignment for it.  A direct function harness therefore
+        # stops on the RETI instruction after validating its opcode from the
+        # stock metadata/reconstructed listing.  Executing RETI itself is
+        # covered by interrupt-injection scenarios.
+        execution_entry = entry
+        execution_stop = (return_stops or [stop])[0]
+    if case.get("stop_before_return", False):
+        if physical_return not in ("ret", "eret") or not return_stops:
+            raise SimulatorError(
+                f"{case['id']}: stop_before_return requires verified RET/ERET stops"
+            )
+        execution_stop = return_stops[0]
+    natural_execution_stop = execution_stop
+    if dependency_stops:
+        execution_stop = dependency_stops[0]
+    if overlay is not None:
+        lines.append(f'LOAD "{debugger_path(overlay)}" INCREMENTAL')
+    if dependency_trace_overlay is not None:
+        lines.append(
+            f'LOAD "{debugger_path(dependency_trace_overlay)}" INCREMENTAL'
+        )
+    if monitor is not None and case.get("load_monitor", False):
+        lines.append(f'LOAD "{debugger_path(monitor)}" INCREMENTAL')
+    # Apply the 80251 configuration bytes before establishing the test's
+    # declared register and memory state.  Loading an application does not
+    # itself guarantee that S251 has performed a processor reset.
+    lines.extend(("RESET", "BK *"))
+    lines.extend(harness_lines)
+    for address, patch_bytes in code_patches or []:
+        for offset, value in enumerate(patch_bytes):
+            lines.append(f"_WBYTE(0x{address + offset:06x}, 0x{value:02x})")
+    for address, return_kind, assignments in dependency_stubs or []:
+        shim_address = (dependency_trace_shims or {}).get(address)
+        if shim_address is not None:
+            for offset, value in enumerate(
+                (
+                    0x8A,
+                    (shim_address >> 16) & 0xFF,
+                    (shim_address >> 8) & 0xFF,
+                    shim_address & 0xFF,
+                )
+            ):
+                lines.append(f"_WBYTE(0x{address + offset:06x}, 0x{value:02x})")
+            continue
+        opcode = {"ret": 0x22, "reti": 0x32, "eret": 0xAA}.get(return_kind)
+        if opcode is None:
+            raise SimulatorError(
+                f"{case['id']}: cannot synthesize {return_kind!r} dependency return"
+            )
+        stub_bytes: list[int] = []
+        for register, value in assignments:
+            if register in ("ACC", "R11"):
+                stub_bytes.extend((0x74, value & 0xFF))
+            elif re.fullmatch(r"R(?:[0-9]|1[0-5])", register):
+                number = int(register[1:])
+                stub_bytes.extend((0x7E, number << 4, value & 0xFF))
+            elif re.fullmatch(r"WR(?:0|2|4|6|8|10|12|14)", register):
+                number = int(register[2:])
+                stub_bytes.extend(
+                    (0x7E, ((number // 2) << 4) | 0x04, (value >> 8) & 0xFF, value & 0xFF)
+                )
+            elif re.fullmatch(r"DR(?:0|4|8|12)", register) and value == 0:
+                number = int(register[2:])
+                stub_bytes.extend((0x7E, ((number // 4) << 4) | 0x08, 0, 0))
+            else:
+                raise SimulatorError(
+                    f"{case['id']}: unsupported dependency result {register}={value}"
+                )
+        stub_bytes.append(opcode)
+        for offset, value in enumerate(stub_bytes):
+            lines.append(f"_WBYTE(0x{address + offset:06x}, 0x{value:02x})")
+    if dependency_tracepoints:
+        lines.extend(
+            (
+                f"_WBYTE(0x{DEPENDENCY_TRACE_BASE:06x}, 0)",
+                f"_WBYTE(0x{DEPENDENCY_TRACE_BASE + 1:06x}, 0)",
+                f"_WBYTE(0x{DEPENDENCY_TRACE_BASE + 2:06x}, 0)",
+                f"_WBYTE(0x{DEPENDENCY_TRACE_BASE + 3:06x}, 0)",
+            )
+        )
+    if hardware_signal_starts:
+        lines.extend(
+            (
+                f"_WBYTE(0x{HARDWARE_TRACE_BASE:06x}, 0)",
+                f"_WBYTE(0x{HARDWARE_TRACE_BASE + 1:06x}, 0)",
+                f"_WBYTE(0x{HARDWARE_TRACE_BASE + 2:06x}, 0)",
+                f"_WBYTE(0x{HARDWARE_TRACE_ACTIVE:06x}, 0)",
+            )
+        )
+    for name, value in case.get("registers", {}).items():
+        lines.append(f"{name} = {int(value)}")
+    for sfr in case.get("sfr", []):
+        address = int(str(sfr["address"]), 0)
+        lines.append(f"_WBYTE(D:0x{address:04x}, {int(sfr['value'])})")
+    for region in case.get("memory", []):
+        address = int(str(region["address"]), 0)
+        for offset, value in enumerate(region["bytes"]):
+            target = debugger_data_address(address + offset)
+            lines.append(f"_WBYTE({target}, {int(value)})")
+    for region in case.get("internal_memory", []):
+        address = int(str(region["address"]), 0)
+        for offset, value in enumerate(region["bytes"]):
+            lines.append(f"_WBYTE(I:0x{address + offset:02x}, {int(value)})")
+    for bit in case.get("bits", []):
+        bit_address = int(str(bit["address"]), 0)
+        byte_address = 0x20 + bit_address // 8
+        mask = 1 << (bit_address % 8)
+        operator = "|" if int(bit["value"]) else "&"
+        operand = mask if int(bit["value"]) else 0xFF ^ mask
+        lines.append(
+            f"_WBYTE(I:0x{byte_address:02x}, "
+            f"_RBYTE(I:0x{byte_address:02x}) {operator} 0x{operand:02x})"
+        )
+    lines.append(
+        f'SAVE "{debugger_path(code_snapshot)}" 0x{entry:06x},0x{stop:06x}'
+    )
+    if execution_entry != entry:
+        trampoline_snapshot = result_path.with_name("trampoline-before-run.hex")
+        lines.append(
+            f'SAVE "{debugger_path(trampoline_snapshot)}" '
+            f"0x{execution_entry:06x},0x{trampoline_snapshot_end or execution_stop:06x}"
+        )
+    lines.append(f"$ = {debugger_address(execution_entry)}")
+    if dependency_stops:
+        for dependency_stop in dependency_stops:
+            lines.append(f"BS {debugger_address(dependency_stop)}")
+        if natural_execution_stop not in dependency_stops:
+            lines.append(f"BS {debugger_address(natural_execution_stop)}")
+    elif case.get("stop_before_return", False):
+        # S251 does not reliably honor the second address in `G start,stop`
+        # for this native ERET stack context.  An explicit execution
+        # breakpoint stops before the return instruction without executing it.
+        lines.append(f"BS {debugger_address(natural_execution_stop)}")
+    elif physical_return == "reti" and return_stops and len(return_stops) > 1:
+        for return_stop in return_stops:
+            lines.append(f"BS {debugger_address(return_stop)}")
+    lines.append(f'LOG > "{debugger_path(debugger_log)}"')
+    lines.append(f"_WDWORD(0x{state_base:06x}, states)")
+    lines.append(f"_WBYTE(0x{state_base + EXECUTION_STACK_STATE_OFFSET:06x}, SP)")
+    if case.get("snapshot_near", True):
+        lines.append(
+            f'SAVE "{debugger_path(ram_before_near)}" E:0x000420,E:0x00ffff'
+        )
+    if case.get("snapshot_controller", True):
+        lines.append(
+            f'SAVE "{debugger_path(ram_before_controller)}" 0x018000,0x01ffff'
+        )
+    lines.extend(hardware_signal_starts)
+    if hardware_signal_starts:
+        lines.append(f"_WBYTE(0x{HARDWARE_TRACE_ACTIVE:06x}, 1)")
+    if not (physical_return == "nonreturn" and execution_entry == execution_stop):
+        if dependency_stops or case.get("stop_before_return", False) or (
+            physical_return == "reti" and return_stops and len(return_stops) > 1
+        ):
+            lines.append(f"G {debugger_address(execution_entry)}")
+        else:
+            lines.append(
+                f"G {debugger_address(execution_entry)},{debugger_address(execution_stop)}"
+            )
+    if hardware_signal_starts:
+        lines.append(f"_WBYTE(0x{HARDWARE_TRACE_ACTIVE:06x}, 0)")
+    for projection in case.get("_result_projections", []):
+        width = int(projection["width"])
+        writer = {1: "_WBYTE", 2: "_WWORD", 4: "_WDWORD"}[width]
+        address = debugger_data_address(int(str(projection["address"]), 0))
+        lines.append(f"{writer}({address}, {projection['register']})")
+    for copy_region in case.get("_post_execution_copies", []):
+        source = int(copy_region["source"])
+        destination = int(copy_region["destination"])
+        for offset in range(int(copy_region["length"])):
+            lines.append(
+                f"_WBYTE({debugger_data_address(destination + offset)}, "
+                f"_RBYTE({debugger_data_address(source + offset)}))"
+            )
+    if case.get("snapshot_near", True):
+        lines.append(
+            f'SAVE "{debugger_path(ram_after_near)}" E:0x000420,E:0x00ffff'
+        )
+    if case.get("snapshot_controller", True):
+        lines.append(
+            f'SAVE "{debugger_path(ram_after_controller)}" 0x018000,0x01ffff'
+        )
+    lines.append(f"_WDWORD(0x{state_base + 4:06x}, states)")
+    lines.append(
+        f"_WBYTE(0x{state_base + EXECUTION_STACK_STATE_OFFSET + 1:06x}, SP)"
+    )
+    for index, register in enumerate(EXECUTION_DIAGNOSTIC_REGISTERS):
+        lines.append(
+            f"_WDWORD(0x{state_base + EXECUTION_REGISTER_STATE_OFFSET + index * 4:06x}, {register})"
+        )
+    lines.append(f"_WBYTE(0x{base:06x}, 0xa5)")
+    lines.append("LOG OFF")
+    cursor = base + 1
+    for name, width in observe.items():
+        writer = {1: "_WBYTE", 2: "_WWORD", 4: "_WDWORD"}.get(int(width))
+        if writer is None:
+            raise SimulatorError(f"{case['id']}: unsupported observation width {width}")
+        lines.append(f"{writer}(0x{cursor:06x}, {name})")
+        cursor += int(width)
+    for region in case.get("observe", {}).get("memory", []):
+        address = int(str(region["address"]), 0)
+        for offset in range(int(region["length"])):
+            source = debugger_data_address(address + offset)
+            lines.append(f"_WBYTE(0x{cursor:06x}, _RBYTE({source}))")
+            cursor += 1
+    if dependency_tracepoints:
+        lines.append(
+            f'SAVE "{debugger_path(dependency_trace)}" '
+            f"0x{DEPENDENCY_TRACE_BASE:06x},"
+            f"0x{DEPENDENCY_TRACE_BASE + 3 + DEPENDENCY_TRACE_MAX_RECORDS * DEPENDENCY_TRACE_RECORD_SIZE:06x}"
+        )
+    if hardware_signal_starts:
+        lines.append(
+            f'SAVE "{debugger_path(hardware_trace)}" '
+            f"0x{HARDWARE_TRACE_BASE:06x},"
+            f"0x{HARDWARE_TRACE_RECORD_BASE + HARDWARE_TRACE_MAX_RECORDS * HARDWARE_TRACE_RECORD_SIZE - 1:06x}"
+        )
+    lines.append(f"_WDWORD(0x{cursor:06x}, $)")
+    cursor += 4
+    cursor = max(cursor, state_base + EXECUTION_STACK_STATE_OFFSET + 2)
+    lines.extend((f'SAVE "{debugger_path(result_path)}" 0x{base:06x},0x{cursor - 1:06x}', "EXIT"))
+    expected_stop: int | list[int] = execution_stop
+    if dependency_stops:
+        expected_stop = [*dependency_stops, natural_execution_stop]
+    if physical_return == "reti" and return_stops:
+        expected_stop = return_stops
+    return "\n".join(lines) + "\n", expected_stop
+
+
+def decode_execution_result(
+    case: dict[str, object],
+    path: Path,
+    expected_pc: int | list[int],
+    physical_return: str | None = None,
+    dependency_stops: list[int] | None = None,
+) -> dict[str, object]:
+    memory = read_intel_hex(path)
+    base = 0x017F00
+    state_base = base + 0x20
+    if memory.get(base) != 0xA5:
+        raise SimulatorError(f"{case['id']}: execution did not reach its declared return site")
+    cursor = base + 1
+    registers: dict[str, int] = {}
+    for name, width_value in case["observe"]["registers"].items():
+        width = int(width_value)
+        value = 0
+        for offset in range(width):
+            value = (value << 8) | memory[cursor + offset]
+        registers[name] = value
+        cursor += width
+    observed_memory: dict[str, object] = {}
+    for region in case.get("observe", {}).get("memory", []):
+        length = int(region["length"])
+        observed_memory[str(region["name"])] = [memory[cursor + offset] for offset in range(length)]
+        cursor += length
+    ram_delta: dict[str, list[int]] = {}
+    initial_digest = hashlib.sha256()
+    snapshot_paths = {}
+    if case.get("snapshot_controller", True):
+        snapshot_paths.update(
+            {
+                "before_controller": path.with_name("ram-before-controller.hex"),
+                "after_controller": path.with_name("ram-after-controller.hex"),
+            }
+        )
+    if case.get("snapshot_near", True):
+        snapshot_paths.update(
+            {
+                "before_near": path.with_name("ram-before-near.hex"),
+                "after_near": path.with_name("ram-after-near.hex"),
+            }
+        )
+    if any(not snapshot.is_file() for snapshot in snapshot_paths.values()):
+        raise SimulatorError(f"{case['id']}: missing RAM snapshot")
+    snapshots = {name: read_intel_hex(snapshot) for name, snapshot in snapshot_paths.items()}
+    snapshot_regions = []
+    if case.get("snapshot_near", True):
+        for name in ("before_near", "after_near"):
+            snapshots[name] = normalize_edata_snapshot(snapshots[name])
+        snapshot_regions.append(
+            ("near", 0x000420, 0x00FFFF, "before_near", "after_near")
+        )
+    if case.get("snapshot_controller", True):
+        snapshot_regions.append(
+            (
+                "controller",
+                0x018000,
+                0x01FFFF,
+                "before_controller",
+                "after_controller",
+            )
+        )
+    ignored_memory_addresses = {
+        int(str(region["address"]), 0) + offset
+        for region in case.get("ignored_memory", [])
+        for offset in range(int(region["length"]))
+    }
+    code_pointer_addresses = {
+        int(str(pointer["address"]), 0) + offset
+        for pointer in case.get("code_pointer_memory", [])
+        for offset in range(4)
+    }
+    code_address_map = case.get("_code_address_map", {})
+    for pointer in case.get("code_pointer_memory", []):
+        address = int(str(pointer["address"]), 0)
+        snapshot = (
+            snapshots["after_near"]
+            if address <= 0x00FFFF
+            else snapshots["after_controller"]
+        )
+        physical = 0
+        for offset in range(4):
+            physical = (physical << 8) | snapshot.get(address + offset, 0)
+        physical &= 0xFFFFFF
+        canonical = code_address_map.get(physical)
+        observed_memory[str(pointer["name"])] = (
+            f"0x{int(canonical):06x}"
+            if canonical is not None
+            else f"unmapped@0x{physical:06x}"
+        )
+    for label, first, last, before_name, after_name in snapshot_regions:
+        before = snapshots[before_name]
+        after = snapshots[after_name]
+        ignored_pointer_addresses = {
+            int(str(relocation["pointer_address"]), 0) + offset
+            for relocation in case.get("memory_relocations", [])
+            for offset in range(4)
+        }
+        for address in range(first, last + 1):
+            if (
+                label == "near"
+                and DEPENDENCY_TRACE_SCRATCH_FIRST
+                <= address
+                <= DEPENDENCY_TRACE_SCRATCH_LAST
+            ):
+                continue
+            if address in ignored_pointer_addresses:
+                continue
+            if address in code_pointer_addresses:
+                continue
+            if address in ignored_memory_addresses:
+                continue
+            old = before.get(address, 0)
+            new = after.get(address, 0)
+            initial_digest.update(bytes((old,)))
+            if old != new:
+                ram_delta[f"0x{address:06x}"] = [old, new]
+    observed_memory["$initial_sha256"] = initial_digest.hexdigest()
+    observed_memory["$ram_delta"] = ram_delta
+    program_counter = 0
+    for offset in range(4):
+        program_counter = (program_counter << 8) | memory[cursor + offset]
+    program_counter &= 0xFFFFFF
+    expected_program_counters = (
+        [value & 0xFFFFFF for value in expected_pc]
+        if isinstance(expected_pc, list)
+        else [expected_pc & 0xFFFFFF]
+    )
+    unexpected_stop = program_counter not in expected_program_counters
+    stop_diagnostics: dict[str, str] = {}
+    if unexpected_stop:
+        for index, register in enumerate(EXECUTION_DIAGNOSTIC_REGISTERS):
+            value = 0
+            for offset in range(4):
+                value = (
+                    value << 8
+                ) | memory[
+                    state_base
+                    + EXECUTION_REGISTER_STATE_OFFSET
+                    + index * 4
+                    + offset
+                ]
+            stop_diagnostics[register] = f"0x{value:08x}"
+        for register, value in registers.items():
+            stop_diagnostics.setdefault(register, f"0x{value:08x}")
+    start_states = 0
+    end_states = 0
+    for offset in range(4):
+        start_states = (start_states << 8) | memory[state_base + offset]
+        end_states = (end_states << 8) | memory[state_base + 4 + offset]
+    executed_states = (end_states - start_states) & 0xFFFFFFFF
+    if executed_states > int(case["instruction_limit"]):
+        raise SimulatorError(
+            f"{case['id']}: executed {executed_states} states, limit is {case['instruction_limit']}"
+        )
+    start_sp = memory[state_base + EXECUTION_STACK_STATE_OFFSET]
+    end_sp = memory[state_base + EXECUTION_STACK_STATE_OFFSET + 1]
+    stack_delta = (end_sp - start_sp) & 0xFF
+    if case.get("stop_before_return", False):
+        expected_stack_delta = 2 if physical_return == "ret" else 4
+    else:
+        expected_stack_delta = 0xFE if physical_return == "ret" else 0
+    stack_residual = (stack_delta - expected_stack_delta) & 0xFF
+    dependency_termination = bool(
+        not unexpected_stop
+        and dependency_stops
+        and program_counter in dependency_stops
+    )
+    result = {
+        "termination": (
+            f"unexpected@0x{program_counter:06x}"
+            if unexpected_stop
+            else "dependency"
+            if dependency_termination
+            else case["termination"]
+        ),
+        "registers": registers,
+        "flags": {},
+        "stack": (
+            {"boundary": "unexpected", "balanced": stack_residual == 0, "residual": stack_residual}
+            if unexpected_stop
+            else
+            {"boundary": "dependency"}
+            if dependency_termination
+            else {"boundary": "nonreturn"}
+            if case["termination"] == "nonreturn"
+            else {"balanced": stack_residual == 0, "residual": stack_residual}
+        ),
+        "memory": observed_memory,
+        "trace": [],
+        "states": executed_states,
+    }
+    if unexpected_stop:
+        result["stop_diagnostics"] = stop_diagnostics
+    return result
+
+
+def execute_image(
+    case: dict[str, object],
+    image: str,
+    application: Path,
+    entry: int,
+    stop: int,
+    overlay: Path | None,
+    monitor: Path | None,
+    uv4: Path,
+    base_project: Path,
+    output: Path,
+    timeout: int,
+    machine_termination: str | None = None,
+    prebuilt_trampoline: tuple[int, int] | None = None,
+    dependency_stubs: list[tuple[int, str, list[tuple[str, int]]]] | None = None,
+    dependency_stops: list[int] | None = None,
+    return_stops: list[int] | None = None,
+    code_patches: list[tuple[int, list[int]]] | None = None,
+    dependency_tracepoints: list[DependencyTracepoint] | None = None,
+    dependency_trace_overlay: Path | None = None,
+    dependency_trace_shims: dict[int, int] | None = None,
+    dependency_code_map: dict[int, int] | None = None,
+) -> dict[str, object]:
+    directory = output / str(case["id"]) / image
+    directory.mkdir(parents=True, exist_ok=True)
+    result_path = directory / "result.hex"
+    physical_return = machine_termination or str(case["termination"])
+    initialization = directory / "run.ini"
+    script, expected_pc = render_execution_script(
+        case,
+        entry,
+        stop,
+        result_path,
+        overlay,
+        monitor,
+        machine_termination,
+        prebuilt_trampoline,
+        dependency_stubs,
+        dependency_stops,
+        return_stops,
+        code_patches,
+        dependency_tracepoints,
+        dependency_trace_overlay,
+        dependency_trace_shims,
+    )
+    initialization.write_text(
+        script, encoding="ascii"
+    )
+    project = directory / "run.uvproj"
+    create_project(base_project, project, initialization, application)
+    required_outputs = (result_path,)
+    if case.get("snapshot_controller", True):
+        required_outputs += (
+            result_path.with_name("ram-before-controller.hex"),
+            result_path.with_name("ram-after-controller.hex"),
+        )
+    if case.get("snapshot_near", True):
+        required_outputs += (
+            result_path.with_name("ram-before-near.hex"),
+            result_path.with_name("ram-after-near.hex"),
+        )
+    if dependency_tracepoints:
+        required_outputs += (result_path.with_name("dependency-trace.hex"),)
+    if case.get("hardware_reads") or case.get("hardware_writes"):
+        required_outputs += (result_path.with_name("hardware-trace.hex"),)
+    for attempt in range(1, 4):
+        for generated in required_outputs:
+            generated.unlink(missing_ok=True)
+        run_uv4(uv4, project, directory / "uv4.log", timeout)
+        missing = [path.name for path in required_outputs if not path.is_file()]
+        if not missing:
+            break
+        if attempt == 3:
+            raise SimulatorError(
+                f"{case['id']} {image}: uVision omitted {', '.join(missing)} after 3 attempts"
+            )
+    result = decode_execution_result(
+        case, result_path, expected_pc, physical_return, dependency_stops
+    )
+    if case.get("hardware_reads") or case.get("hardware_writes"):
+        result["hardware_trace"] = decode_hardware_trace(
+            case,
+            result_path.with_name("hardware-trace.hex"),
+            validate_contract=image == "stock",
+        )
+    if dependency_tracepoints:
+        result["trace"] = decode_dependency_trace(
+            result_path.with_name("dependency-trace.hex"),
+            dependency_tracepoints,
+            dependency_code_map,
+        )
+    return result
+
+
+def create_project(
+    base_project: Path,
+    destination: Path,
+    initialization_file: Path,
+    application: Path | None = None,
+) -> None:
+    tree = ET.parse(base_project)
+    root = tree.getroot()
+    targets = root.find("Targets")
+    if targets is None:
+        raise SimulatorError(f"{base_project}: missing Targets")
+    selected = None
+    for target in targets.findall("Target"):
+        name = target.findtext("TargetName", "")
+        if "Simulator: Source Mode" in name:
+            selected = target
+            break
+    if selected is None:
+        for target in targets.findall("Target"):
+            simulator = target.find("./TargetOption/DebugOption/Simulator/UseSimulator")
+            if simulator is not None and simulator.text == "1":
+                selected = target
+                break
+    if selected is None:
+        raise SimulatorError(f"{base_project}: no C251 simulator target")
+    for target in list(targets):
+        if target is not selected:
+            targets.remove(target)
+    name = selected.find("TargetName")
+    if name is not None:
+        name.text = "Plextor differential simulator"
+    for xpath, value in (
+        ("./TargetOption/DebugOption/Simulator/UseSimulator", "1"),
+        ("./TargetOption/DebugOption/Simulator/LoadApplicationAtStartup", "1" if application else "0"),
+        ("./TargetOption/DebugOption/Simulator/RunToMain", "0"),
+        ("./TargetOption/DebugOption/Simulator/RestoreBreakpoints", "0"),
+        ("./TargetOption/DebugOption/Simulator/RestoreWatchpoints", "0"),
+        ("./TargetOption/DebugOption/Simulator/RestoreMemoryDisplay", "0"),
+        ("./TargetOption/DebugOption/Simulator/RestoreFunctions", "0"),
+        ("./TargetOption/DebugOption/Simulator/RestoreToolbox", "0"),
+        ("./TargetOption/DebugOption/Target/UseTarget", "0"),
+        ("./TargetOption/DebugOption/SimDlls/InitializationFile", wine_path(initialization_file)),
+    ):
+        node = selected.find(xpath)
+        if node is None:
+            raise SimulatorError(f"{base_project}: missing project field {xpath}")
+        node.text = value
+    if application is not None:
+        output_directory = selected.find("./TargetOption/TargetCommonOption/OutputDirectory")
+        output_name = selected.find("./TargetOption/TargetCommonOption/OutputName")
+        if output_directory is None or output_name is None:
+            raise SimulatorError(f"{base_project}: missing output application fields")
+        output_directory.text = wine_path(application.parent) + "\\"
+        output_name.text = application.name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    ET.indent(tree, space="  ")
+    tree.write(destination, encoding="utf-8", xml_declaration=True)
+
+
+def run_uv4(uv4: Path, project: Path, log: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+    command = [str(uv4), "-d", str(project), "-j0", "-x", "-o", str(log)]
+    environment = os.environ.copy()
+    if os.name != "nt" and uv4.read_bytes()[:2] == b"MZ":
+        wine = shutil.which("wine")
+        if wine is None:
+            raise SimulatorError("UV4.exe requires Wine on this host")
+        command = [wine, str(uv4), "-d", wine_path(project), "-j0", "-x", "-o", wine_path(log)]
+        environment.setdefault("WINEDEBUG", "-all")
+    started = time.monotonic()
+    try:
+        process = subprocess.run(
+            command,
+            cwd=project.parent,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        diagnostic = exc.stdout or ""
+        raise SimulatorError(
+            f"uVision exceeded its {timeout}s wall-clock limit"
+            + (f": {diagnostic}" if diagnostic else "")
+        ) from exc
+    elapsed = time.monotonic() - started
+    if process.returncode != 0:
+        raise SimulatorError(f"uVision exited with {process.returncode} after {elapsed:.1f}s: {process.stdout}")
+    return process
+
+
+def write_junit(path: Path, results: list[dict[str, object]]) -> None:
+    failures = sum(result["status"] == "mismatch" for result in results)
+    errors = sum(result["status"] == "error" for result in results)
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<testsuite name="keil-80251-differential" tests="{len(results)}" failures="{failures}" errors="{errors}">',
+    ]
+    for result in results:
+        lines.append(f'  <testcase name="{escape(str(result["id"]))}">')
+        if result["status"] == "mismatch":
+            lines.append(f'    <failure>{escape(str(result.get("differences", [])))}</failure>')
+        elif result["status"] == "error":
+            lines.append(f'    <error>{escape(str(result.get("error", "unknown error")))}</error>')
+        elif result["status"] in ("untested", "blocked-metadata"):
+            lines.append(f'    <skipped message="{result["status"]}"/>')
+        lines.append("  </testcase>")
+    lines.append("</testsuite>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_results(
+    output: Path,
+    results: list[dict[str, object]],
+    run_identity: dict[str, object],
+) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    document = {
+        "schema_version": SCHEMA_VERSION,
+        "run_identity": run_identity,
+        "results": results,
+    }
+    temporary = output / "results.json.tmp"
+    temporary.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(output / "results.json")
+    write_junit(output / "results.junit.xml", results)
+
+
+def build_catalog(source_root: Path, map_path: Path | None, metadata_path: Path | None) -> list[dict[str, object]]:
+    catalog = extract_source_functions(source_root)
+    by_address = {item["canonical_address"]: item for item in catalog}
+    if metadata_path is not None:
+        metadata = load_metadata(metadata_path)
+        for item in metadata.get("functions", []):
+            target = by_address.get(item.get("canonical_address"))
+            if target is not None:
+                target["ghidra"] = item
+                if item.get("abi_complete") is False:
+                    target["evidence"] = "blocked-metadata"
+    if map_path is not None:
+        symbols = parse_keil_map(map_path)
+        for item in catalog:
+            symbol = item["symbol"]
+            address = symbols.get(str(symbol)) if symbol is not None else None
+            if address is not None:
+                item["reconstructed_address"] = f"0x{address:06x}"
+    return catalog
+
+
+def apply_case_evidence(catalog: list[dict[str, object]], cases: list[dict[str, object]], results: list[dict[str, object]]) -> None:
+    result_by_id = {result["id"]: result for result in results}
+    by_address = {item["canonical_address"]: item for item in catalog}
+    rank = {name: index for index, name in enumerate(("untested", "smoke", "branch-covered", "differential-fuzzed", "scenario-tested", "exhaustive"))}
+    for case in cases:
+        result = result_by_id.get(case["id"])
+        if result is None or result.get("status") != "pass":
+            if result is not None and result.get("status") == "mismatch":
+                by_address[case["function"]]["evidence"] = "mismatch"
+            continue
+        requested = str(case.get("evidence", "smoke"))
+        target = by_address[case["function"]]
+        current = str(target["evidence"])
+        if current not in ("mismatch", "blocked-metadata") and rank.get(requested, -1) > rank.get(current, -1):
+            target["evidence"] = requested
+
+
+def function_report_results(
+    catalog: list[dict[str, object]],
+    cases: list[dict[str, object]],
+    results: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Return exactly one JUnit result for every canonical function."""
+    case_function = {str(case["id"]): str(case["function"]) for case in cases}
+    results_by_function: dict[str, list[dict[str, object]]] = {}
+    for result in results:
+        function = case_function.get(str(result.get("id")))
+        if function is not None:
+            results_by_function.setdefault(function, []).append(result)
+
+    report_results = []
+    for item in catalog:
+        address = str(item["canonical_address"])
+        function_results = results_by_function.get(address, [])
+        mismatches = [
+            result for result in function_results if result.get("status") == "mismatch"
+        ]
+        errors = [
+            result for result in function_results if result.get("status") == "error"
+        ]
+        evidence = str(item["evidence"])
+        status = "pass"
+        entry: dict[str, object] = {
+            "id": f"{address}:{item.get('symbol') or '<unknown>'}",
+            "status": status,
+        }
+        if mismatches:
+            entry["status"] = "mismatch"
+            entry["differences"] = [
+                difference
+                for result in mismatches
+                for difference in result.get("differences", [])
+            ]
+        elif errors:
+            entry["status"] = "error"
+            entry["error"] = "; ".join(
+                str(result.get("error", "unknown error")) for result in errors
+            )
+        elif evidence in ("untested", "blocked-metadata"):
+            entry["status"] = evidence
+        report_results.append(entry)
+    return report_results
+
+
+def command_prepare(args: argparse.Namespace) -> int:
+    args.output.mkdir(parents=True, exist_ok=True)
+    metadata_path = getattr(args, "metadata", None)
+    if metadata_path is not None:
+        load_metadata(metadata_path, args.stock)
+    stock = args.stock.read_bytes()
+    if len(stock) != 0x80000:
+        raise SimulatorError(f"{args.stock}: expected 0x80000 bytes")
+    (args.output / "stock.hex").write_text(intel_hex(stock, 0xF80000), encoding="ascii")
+    monitor_path = getattr(args, "monitor", None)
+    monitor_provenance = None
+    if monitor_path is not None:
+        monitor = monitor_path.read_bytes()
+        if len(monitor) != 0x10000:
+            raise SimulatorError(f"{monitor_path}: expected 0x10000 bytes")
+        (args.output / "monitor.hex").write_text(
+            intel_hex(monitor, 0xFF0000), encoding="ascii"
+        )
+        monitor_provenance = {
+            "path": str(monitor_path),
+            "sha256": sha256(monitor_path),
+        }
+    else:
+        (args.output / "monitor.hex").unlink(missing_ok=True)
+    provenance = {
+        "schema_version": SCHEMA_VERSION,
+        "stock": {"path": str(args.stock), "sha256": sha256(args.stock)},
+        "monitor": monitor_provenance,
+    }
+    (args.output / "images.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+    return 0
+
+
+def command_validate_metadata(args: argparse.Namespace) -> int:
+    document = load_metadata(args.metadata, args.stock)
+    print(
+        f"Simulator metadata: {len(document['functions'])} functions for "
+        f"{document['firmware']['model']} firmware {document['firmware']['version']}"
+    )
+    return 0
+
+
+def command_build_stock(args: argparse.Namespace) -> int:
+    metadata = load_metadata(args.metadata, args.stock)
+    application = build_full_stock_application(
+        args.stock.resolve(),
+        metadata,
+        args.output.resolve(),
+        args.keil_driver.resolve(),
+        args.a251.resolve(),
+        args.l251.resolve(),
+        args.keil_root.resolve(),
+    )
+    memory = build_full_memory_application(
+        args.stock.resolve(),
+        args.output.resolve(),
+        args.keil_driver.resolve(),
+        args.a251.resolve(),
+        args.l251.resolve(),
+        args.keil_root.resolve(),
+    )
+    print(application)
+    print(memory)
+    return 0
+
+
+def command_inventory(args: argparse.Namespace) -> int:
+    metadata = load_metadata(args.metadata)
+    inventory = build_inventory(metadata)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"Simulator inventory: {inventory['function_count']} functions; "
+        + ", ".join(
+            f"{name}={count}" for name, count in inventory["harness_counts"].items()
+        )
+    )
+    return 0
+
+
+def abi_register(storage: str) -> tuple[str, int] | None:
+    match = re.fullmatch(r"(ACC|B|R\d+|WR\d+|DR\d+):(1|2|4)", storage)
+    if match is None:
+        return None
+    name = "R11" if match.group(1) == "ACC" else match.group(1)
+    return name, int(match.group(2))
+
+
+def resolve_parameter_memory_location(
+    location: str, symbols: dict[str, int]
+) -> int:
+    match = re.fullmatch(r"([^+]+)(?:\+(0x[0-9a-fA-F]+|[0-9]+))?", location)
+    if match is None:
+        raise SimulatorError(f"invalid parameter memory location {location!r}")
+    symbol = match.group(1)
+    if symbol not in symbols:
+        raise SimulatorError(
+            f"parameter memory location symbol {symbol!r} is absent from the map"
+        )
+    offset = int(match.group(2), 0) if match.group(2) else 0
+    return (symbols[symbol] + offset) & 0xFFFFFF
+
+
+def hardware_coupled_dependencies(
+    function: dict[str, object], metadata: dict[str, object]
+) -> list[object]:
+    """Select callees whose real graph reaches external hardware or HDATA.
+
+    Register-backed results receive a deterministic zero value.  Results with
+    unknown or compound ABI storage stay integrated rather than being guessed.
+    """
+    functions = {
+        str(item["canonical_address"]): item for item in metadata["functions"]
+    }
+
+    def reaches_hardware(address: str, visiting: set[str]) -> bool:
+        canonical = address.replace("RAM:", "0x").lower()
+        if canonical in visiting:
+            return False
+        target = functions.get(canonical)
+        if target is None:
+            return True
+        if re.match(
+            r"^(?:Yield|Restart|Initialize)Coroutine\d", str(target.get("symbol", ""))
+        ):
+            return True
+        if not target.get("return_sites") and len(
+            set(target.get("reconstructed_return_kinds", []))
+        ) != 1:
+            return True
+        if simulator_hdata_banks(target):
+            return True
+        for reference in target.get("memory_references", []):
+            space, _, raw_address = str(reference).partition(":")
+            if space == "SFR":
+                return True
+            if space == "RAM" and 0x018000 <= int(raw_address, 16) <= 0x01FFFF:
+                return True
+        nested = visiting | {canonical}
+        return any(reaches_hardware(str(call), nested) for call in target.get("calls", []))
+
+    selected = []
+    for call in function.get("calls", []):
+        canonical = str(call).replace("RAM:", "0x").lower()
+        target = functions.get(canonical)
+        if target is None or not reaches_hardware(canonical, set()):
+            continue
+        if not target.get("return_sites") and len(
+            set(target.get("reconstructed_return_kinds", []))
+        ) != 1:
+            selected.append({"function": str(call), "nonreturn": True})
+            continue
+        returned = abi_register(str(target.get("return_storage", "")))
+        if returned is not None:
+            selected.append(
+                {
+                    "function": str(call),
+                    "return": {"register": returned[0], "value": 0},
+                }
+            )
+        elif target.get("return_storage") == "<UNASSIGNED>":
+            selected.append(str(call))
+    return selected
+
+
+def apply_dependency_result_overrides(
+    generated_case: dict[str, object],
+    result_overrides: object,
+    override_path: Path | None,
+) -> None:
+    if not isinstance(result_overrides, dict):
+        raise SimulatorError(
+            f"{override_path}: dependency_results must be an address-to-value object"
+        )
+    dependencies = generated_case["dependencies"]
+    assert isinstance(dependencies, list)
+    for requested, raw_value in result_overrides.items():
+        canonical = str(requested).replace("RAM:", "0x").lower()
+        matches = []
+        for index, dependency in enumerate(dependencies):
+            dependency_address = (
+                dependency.get("function", "")
+                if isinstance(dependency, dict)
+                else dependency
+            )
+            if str(dependency_address).replace("RAM:", "0x").lower() == canonical:
+                matches.append(index)
+        if len(matches) != 1:
+            raise SimulatorError(
+                f"{override_path}: dependency result override {requested!r} "
+                f"matched {len(matches)} generated dependencies"
+            )
+        dependency = dependencies[matches[0]]
+        if not isinstance(dependency, dict) or not isinstance(
+            dependency.get("return"), dict
+        ):
+            raise SimulatorError(
+                f"{override_path}: dependency {requested!r} has no inferred register result"
+            )
+        dependency["return"]["value"] = int(raw_value)
+
+
+def apply_dependency_reconstructed_symbol_overrides(
+    generated_case: dict[str, object],
+    symbol_overrides: object,
+    override_path: Path | None,
+) -> None:
+    if not isinstance(symbol_overrides, dict):
+        raise SimulatorError(
+            f"{override_path}: dependency_reconstructed_symbols must be an object"
+        )
+    dependencies = generated_case["dependencies"]
+    assert isinstance(dependencies, list)
+    for requested, raw_symbol in symbol_overrides.items():
+        canonical = str(requested).replace("RAM:", "0x").lower()
+        matches = []
+        for index, dependency in enumerate(dependencies):
+            dependency_address = (
+                dependency.get("function", "")
+                if isinstance(dependency, dict)
+                else dependency
+            )
+            if str(dependency_address).replace("RAM:", "0x").lower() == canonical:
+                matches.append(index)
+        if len(matches) != 1 or not isinstance(raw_symbol, str) or not raw_symbol:
+            raise SimulatorError(
+                f"{override_path}: reconstructed-symbol override {requested!r} "
+                f"matched {len(matches)} dependencies or has an invalid symbol"
+            )
+        index = matches[0]
+        dependency = dependencies[index]
+        if not isinstance(dependency, dict):
+            dependency = {"function": str(dependency)}
+            dependencies[index] = dependency
+        dependency["reconstructed_symbol"] = raw_symbol
+
+
+def apply_nonreturn_dependency_overrides(
+    generated_case: dict[str, object],
+    nonreturn_dependencies: object,
+    override_path: Path | None,
+) -> None:
+    if not isinstance(nonreturn_dependencies, list):
+        raise SimulatorError(
+            f"{override_path}: nonreturn_dependencies must be an array"
+        )
+    dependencies = generated_case["dependencies"]
+    assert isinstance(dependencies, list)
+    for requested in nonreturn_dependencies:
+        canonical = str(requested).replace("RAM:", "0x").lower()
+        matches = []
+        for index, dependency in enumerate(dependencies):
+            dependency_address = (
+                dependency.get("function", "")
+                if isinstance(dependency, dict)
+                else dependency
+            )
+            if str(dependency_address).replace("RAM:", "0x").lower() == canonical:
+                matches.append(index)
+        if len(matches) != 1:
+            raise SimulatorError(
+                f"{override_path}: nonreturn dependency override {requested!r} "
+                f"matched {len(matches)} generated dependencies"
+            )
+        dependencies[matches[0]] = {
+            "function": str(requested),
+            "nonreturn": True,
+        }
+
+
+def apply_dependency_memory_write_overrides(
+    generated_case: dict[str, object],
+    write_overrides: object,
+    override_path: Path | None,
+) -> None:
+    if not isinstance(write_overrides, dict):
+        raise SimulatorError(
+            f"{override_path}: dependency_memory_writes must be an address-to-write-list object"
+        )
+    dependencies = generated_case["dependencies"]
+    assert isinstance(dependencies, list)
+    for requested, writes in write_overrides.items():
+        canonical = str(requested).replace("RAM:", "0x").lower()
+        matches = []
+        for index, dependency in enumerate(dependencies):
+            dependency_address = (
+                dependency.get("function", "")
+                if isinstance(dependency, dict)
+                else dependency
+            )
+            if str(dependency_address).replace("RAM:", "0x").lower() == canonical:
+                matches.append(index)
+        if len(matches) != 1:
+            raise SimulatorError(
+                f"{override_path}: dependency memory-write override {requested!r} "
+                f"matched {len(matches)} generated dependencies"
+            )
+        dependency = dependencies[matches[0]]
+        if not isinstance(dependency, dict):
+            dependency = {"function": dependency}
+            dependencies[matches[0]] = dependency
+        dependency["memory_writes"] = writes
+
+
+def apply_dependency_bit_write_overrides(
+    generated_case: dict[str, object],
+    write_overrides: object,
+    override_path: Path | None,
+) -> None:
+    if not isinstance(write_overrides, dict):
+        raise SimulatorError(
+            f"{override_path}: dependency_bit_writes must be an address-to-write-list object"
+        )
+    dependencies = generated_case["dependencies"]
+    assert isinstance(dependencies, list)
+    for requested, writes in write_overrides.items():
+        canonical = str(requested).replace("RAM:", "0x").lower()
+        matches = []
+        for index, dependency in enumerate(dependencies):
+            dependency_address = (
+                dependency.get("function", "")
+                if isinstance(dependency, dict)
+                else dependency
+            )
+            if str(dependency_address).replace("RAM:", "0x").lower() == canonical:
+                matches.append(index)
+        if len(matches) != 1:
+            raise SimulatorError(
+                f"{override_path}: dependency bit-write override {requested!r} "
+                f"matched {len(matches)} generated dependencies"
+            )
+        dependency = dependencies[matches[0]]
+        if not isinstance(dependency, dict):
+            dependency = {"function": dependency}
+            dependencies[matches[0]] = dependency
+        dependency["bit_writes"] = writes
+
+
+def command_generate_cases(args: argparse.Namespace) -> int:
+    metadata = load_metadata(args.metadata)
+    overrides: dict[str, object] = {}
+    override_path = getattr(args, "overrides", None)
+    if override_path is not None:
+        override_document = json.loads(override_path.read_text(encoding="utf-8"))
+        if override_document.get("schema_version") != SCHEMA_VERSION or not isinstance(
+            override_document.get("overrides"), dict
+        ):
+            raise SimulatorError(f"{override_path}: invalid generated-case overrides")
+        overrides = override_document["overrides"]
+    cases = []
+    deferred: dict[str, int] = {}
+    for function in metadata["functions"]:
+        return_sites = function.get("return_sites", [])
+        if not return_sites:
+            reconstructed_kinds = function.get("reconstructed_return_kinds", [])
+            termination = "shared-tail" if len(reconstructed_kinds) == 1 else "nonreturn"
+        else:
+            return_kinds = {str(site).rsplit(":", 1)[-1] for site in return_sites}
+            if len(return_kinds) != 1:
+                deferred["mixed-return-kinds"] = deferred.get("mixed-return-kinds", 0) + 1
+                continue
+            termination = return_kinds.pop()
+        registers: dict[str, int] = {}
+        for parameter in function.get("parameters", []):
+            parsed = abi_register(str(parameter).split(":", 2)[-1])
+            if parsed is not None:
+                registers[parsed[0]] = 0
+        observed: dict[str, int] = {}
+        returned = abi_register(str(function.get("return_storage", "")))
+        if returned is not None:
+            observed[returned[0]] = returned[1]
+        generated_case = {
+                "id": f"auto-{str(function['canonical_address'])[2:]}",
+                "function": function["canonical_address"],
+                "mode": "isolated",
+                "termination": termination,
+                "instruction_limit": args.instruction_limit,
+                "origin": "deterministic offline metadata smoke generation",
+                "evidence": "smoke",
+                "seed": 0,
+                "registers": registers,
+                "sfr": [],
+                "bits": [],
+                "observe": {"registers": observed, "memory": []},
+                "memory": [],
+                "hardware_reads": [],
+                "hardware_writes": [],
+                "dependencies": hardware_coupled_dependencies(function, metadata),
+                "code_patches": [],
+                "ignored_state": [
+                    {
+                        "name": "compiler scratch registers and unreferenced memory",
+                        "reason": "Generated smoke cases compare termination and declared ABI output only.",
+                    }
+                ],
+            }
+        if termination == "shared-tail":
+            stock_return_kind = canonical_shared_tail_return_kind(function, metadata)
+            if stock_return_kind is not None:
+                generated_case["stock_return_kind"] = stock_return_kind
+        if termination == "nonreturn":
+            generated_case["nonreturn_checkpoint"] = (
+                f"0x{canonical_nonreturn_checkpoint(function):06x}"
+            )
+        override = overrides.get(str(function["canonical_address"]), {})
+        if not isinstance(override, dict):
+            raise SimulatorError(
+                f"{override_path}: override for {function['canonical_address']} must be an object"
+            )
+        override = dict(override)
+        additional_dependencies = override.pop("additional_dependencies", None)
+        if additional_dependencies is not None:
+            if not isinstance(additional_dependencies, list):
+                raise SimulatorError(
+                    f"{override_path}: additional_dependencies must be an array"
+                )
+            generated_case["dependencies"].extend(additional_dependencies)
+        dependency_results = override.pop("dependency_results", None)
+        if dependency_results is not None:
+            apply_dependency_result_overrides(
+                generated_case, dependency_results, override_path
+            )
+        dependency_reconstructed_symbols = override.pop(
+            "dependency_reconstructed_symbols", None
+        )
+        if dependency_reconstructed_symbols is not None:
+            apply_dependency_reconstructed_symbol_overrides(
+                generated_case,
+                dependency_reconstructed_symbols,
+                override_path,
+            )
+        nonreturn_dependencies = override.pop("nonreturn_dependencies", None)
+        if nonreturn_dependencies is not None:
+            apply_nonreturn_dependency_overrides(
+                generated_case, nonreturn_dependencies, override_path
+            )
+        dependency_memory_write_overrides = override.pop(
+            "dependency_memory_writes", None
+        )
+        if dependency_memory_write_overrides is not None:
+            apply_dependency_memory_write_overrides(
+                generated_case,
+                dependency_memory_write_overrides,
+                override_path,
+            )
+        dependency_bit_write_overrides = override.pop(
+            "dependency_bit_writes", None
+        )
+        if dependency_bit_write_overrides is not None:
+            apply_dependency_bit_write_overrides(
+                generated_case,
+                dependency_bit_write_overrides,
+                override_path,
+            )
+        unknown = set(override) - set(generated_case) - {
+            "stock_return_kind",
+            "stop_before_return",
+            "opaque_dependency_pointers",
+            "wall_timeout",
+            "memory_relocations",
+            "stock_hardware_reads",
+            "reconstructed_hardware_reads",
+            "stock_hardware_writes",
+            "reconstructed_hardware_writes",
+            "stock_registers",
+            "reconstructed_registers",
+            "internal_memory",
+            "stock_internal_memory",
+            "reconstructed_internal_memory",
+            "stock_result_projections",
+            "reconstructed_result_projections",
+            "code_pointer_memory",
+            "reconstructed_nonreturn_checkpoint_symbol",
+            "reconstructed_nonreturn_checkpoint_offset",
+            "snapshot_near",
+            "snapshot_controller",
+            "ignored_memory",
+            "ignored_stack",
+        }
+        if unknown:
+            raise SimulatorError(
+                f"{override_path}: unsupported override fields for "
+                f"{function['canonical_address']}: {', '.join(sorted(unknown))}"
+            )
+        generated_case.update(override)
+        validate_case(generated_case, override_path or args.metadata)
+        cases.append(generated_case)
+    document = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_from": str(args.metadata),
+        "case_count": len(cases),
+        "deferred": dict(sorted(deferred.items())),
+        "cases": cases,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"Generated {len(cases)} direct cases; "
+        + ", ".join(f"{name}={count}" for name, count in sorted(deferred.items()))
+    )
+    return 0
+
+
+def command_catalog(args: argparse.Namespace) -> int:
+    catalog = build_catalog(args.source_root, args.map, args.metadata)
+    if len(catalog) != CANONICAL_FUNCTION_COUNT:
+        raise SimulatorError(f"source catalog has {len(catalog)} functions, expected {CANONICAL_FUNCTION_COUNT}")
+    document = {"schema_version": SCHEMA_VERSION, "function_count": len(catalog), "functions": catalog}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return 0
+
+
+def command_smoke(args: argparse.Namespace) -> int:
+    args.output.mkdir(parents=True, exist_ok=True)
+    initialization = args.output / "smoke.ini"
+    marker = args.output / "smoke-marker.hex"
+    result_base = 0x017E00
+    probe_code = 0xF70000
+    probe_addresses = (
+        0x00041F,
+        0x000420,
+        0x00DCCD,
+        0x010100,
+        0x018000,
+        0x2BA5D8,
+    )
+    copy_value_base = result_base + len(probe_addresses)
+    probe_pc_base = result_base + 8
+    copy_pc_base = probe_pc_base + len(probe_addresses) * 4
+    lines = [
+        "MAP 0x000000,0x00ffff READ WRITE EXEC",
+        "MAP 0x010000,0x017fff READ WRITE EXEC",
+        "MAP 0x018000,0x01ffff READ WRITE",
+        "MAP 0x020000,0xf6ffff READ WRITE",
+        "MAP 0xf70000,0xf700ff READ WRITE EXEC",
+        "MAP E:0xf80000,E:0xffffff READ WRITE EXEC",
+        f'LOAD "{debugger_path(args.memory_application)}" INCREMENTAL',
+        "RESET",
+        # Source-mode MOV @DR24,R8.  A debugger-side write is insufficient:
+        # this probe verifies the CPU can actually access each mapped space.
+        f"_WBYTE(0x{probe_code:06x}, 0x7a)",
+        f"_WBYTE(0x{probe_code + 1:06x}, 0x6b)",
+        f"_WBYTE(0x{probe_code + 2:06x}, 0x80)",
+    ]
+    for index, address in enumerate(probe_addresses):
+        value = 0xA0 + index
+        target = debugger_data_address(address)
+        lines.extend(
+            (
+                f"_WBYTE({target}, 0x00)",
+                f"DR24 = 0x{address:06x}",
+                f"R8 = 0x{value:02x}",
+                f"$ = {debugger_address(probe_code)}",
+                f"G {debugger_address(probe_code)},{debugger_address(probe_code + 3)}",
+                f"_WBYTE(0x{result_base + index:06x}, _RBYTE({target}))",
+                f"_WDWORD(0x{probe_pc_base + index * 4:06x}, $)",
+            )
+        )
+    copy_probe = probe_code + 0x10
+    lines.extend(
+        (
+            # MOV R8,@DR28; MOV @DR24,R8.  This is the exact pair used by
+            # CopyBytesWithIndexRange when copying ROM templates to EDATA.
+            f"_WBYTE(0x{copy_probe:06x}, 0x7e)",
+            f"_WBYTE(0x{copy_probe + 1:06x}, 0x7b)",
+            f"_WBYTE(0x{copy_probe + 2:06x}, 0x80)",
+            f"_WBYTE(0x{copy_probe + 3:06x}, 0x7a)",
+            f"_WBYTE(0x{copy_probe + 4:06x}, 0x6b)",
+            f"_WBYTE(0x{copy_probe + 5:06x}, 0x80)",
+            "_WBYTE(0x00dccd, 0x00)",
+            "DR28 = 0xf80000",
+            "DR24 = 0x00dccd",
+            f"$ = {debugger_address(copy_probe)}",
+            f"G {debugger_address(copy_probe)},{debugger_address(copy_probe + 6)}",
+            f"_WBYTE(0x{copy_value_base:06x}, _RBYTE(0x00dccd))",
+            f"_WBYTE(0x{copy_value_base + 1:06x}, _RBYTE(C:0xf80000))",
+            f"_WDWORD(0x{copy_pc_base:06x}, $)",
+        )
+    )
+    lines.extend(
+        (
+            f'SAVE "{wine_path(marker).replace(chr(92), chr(92) * 2)}" '
+            f"0x{result_base:06x},0x{copy_pc_base + 3:06x}",
+            "EXIT",
+        )
+    )
+    initialization.write_text("\n".join(lines) + "\n", encoding="ascii")
+    project = args.output / "smoke.uvproj"
+    create_project(args.base_project, project, initialization, args.application)
+    log = args.output / "smoke.log"
+    run_uv4(args.uv4, project, log, args.timeout)
+    if not marker.is_file():
+        raise SimulatorError(f"uVision did not save the debugger readiness marker; inspect {log}")
+    memory = read_intel_hex(marker)
+    failures = []
+    high_hdata_write_requires_relocation = False
+    for index, address in enumerate(probe_addresses):
+        actual = memory.get(result_base + index)
+        expected = 0xA0 + index
+        pc = 0
+        for offset in range(4):
+            pc = (pc << 8) | memory[probe_pc_base + index * 4 + offset]
+        pc &= 0xFFFFFF
+        if (
+            address == 0x2BA5D8
+            and actual == 0
+            and pc == probe_code + 3
+        ):
+            # S251 executes the source-mode instruction but does not expose
+            # this LC898095 high-HDATA bank. Differential cases relocate such
+            # operands into the modeled window and patch both images
+            # symmetrically; keep the probe so a simulator change is visible.
+            high_hdata_write_requires_relocation = True
+            continue
+        if actual != expected or pc != probe_code + 3:
+            failures.append(
+                f"0x{address:06x}: value={actual!r}, pc=0x{pc:06x}, "
+                f"expected value=0x{expected:02x}, pc=0x{probe_code + 3:06x}"
+            )
+    if failures:
+        raise SimulatorError("S251 CPU memory probe failed: " + "; ".join(failures))
+    copied = memory.get(copy_value_base)
+    source = memory.get(copy_value_base + 1)
+    copy_pc = 0
+    for offset in range(4):
+        copy_pc = (copy_pc << 8) | memory[copy_pc_base + offset]
+    copy_pc &= 0xFFFFFF
+    if copied != source or copy_pc != copy_probe + 6:
+        raise SimulatorError(
+            "S251 huge-read/EDATA-write probe failed: "
+            f"source={source!r}, destination={copied!r}, pc=0x{copy_pc:06x}"
+        )
+    suffix = (
+        "; high-HDATA writes require the differential relocation layer"
+        if high_hdata_write_requires_relocation
+        else ""
+    )
+    print(f"Keil S251 headless debugger smoke test passed{suffix}")
+    return 0
+
+
+def command_compare(args: argparse.Namespace) -> int:
+    stock = json.loads(args.stock.read_text(encoding="utf-8"))
+    reconstructed = json.loads(args.reconstructed.read_text(encoding="utf-8"))
+    differences = compare_results(stock, reconstructed)
+    result = {"id": args.case_id, "status": "mismatch" if differences else "pass", "differences": differences}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    return 1 if differences else 0
+
+
+def normalize_parameter_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def parse_listing_parameter_registers(
+    path: Path, symbol: str, parameter_names: set[str]
+) -> dict[str, str]:
+    text = path.read_text(encoding="latin-1")
+    block = listing_function_block(text, symbol)
+    if block is None:
+        raise SimulatorError(f"{path}: no listing block for {symbol}")
+    lines = block.splitlines()
+    assignments: dict[str, str] = {}
+    variable_pattern = re.compile(
+        r";---- Variable '([^']+)' assigned to Register '([^']+)' ----", re.I
+    )
+    move_pattern = re.compile(
+        r"^[0-9A-Fa-f]{6}\s+[0-9A-Fa-fR ]+\s+MOV\s+([^,;\s]+),([^;\s]+)",
+        re.I,
+    )
+    for index, line in enumerate(lines):
+        match = variable_pattern.search(line)
+        if match is None:
+            continue
+        name = normalize_parameter_name(match.group(1))
+        if name not in parameter_names or name in assignments:
+            continue
+        assigned = match.group(2).upper()
+        incoming = assigned
+        for previous in reversed(lines[:index]):
+            instruction = re.match(r"^[0-9A-Fa-f]{6}\s+", previous)
+            if instruction is None:
+                continue
+            move = move_pattern.match(previous)
+            if move is not None and move.group(1).upper() == assigned:
+                source = move.group(2).upper()
+                if re.fullmatch(r"(?:R|WR|DR)\d+|ACC|B", source):
+                    incoming = source
+            break
+        assignments[name] = incoming
+    spill_address_pattern = re.compile(
+        r"^[0-9A-Fa-f]{6}\s+[0-9A-Fa-fR ]+\s+MOV\s+DPTR,#WORD0\s+([^;\s]+)",
+        re.I,
+    )
+    accumulator_spill_pattern = re.compile(
+        r"^[0-9A-Fa-f]{6}\s+[0-9A-Fa-fR ]+\s+MOVX\s+@DPTR,A(?:\s|;|$)",
+        re.I,
+    )
+    register_spill_pattern = re.compile(
+        r"^[0-9A-Fa-f]{6}\s+[0-9A-Fa-fR ]+\s+MOVX?\s+"
+        r"@DR56(?:\+0x2)?,((?:R|WR|DR)\d+|A|ACC|B)(?:\s|;|$)",
+        re.I,
+    )
+    for index, line in enumerate(lines):
+        match = spill_address_pattern.match(line)
+        if match is None:
+            continue
+        name = normalize_parameter_name(match.group(1))
+        if name not in parameter_names or name in assignments:
+            continue
+        spilled_registers = []
+        for following in lines[index + 1 :]:
+            if re.match(r"^[0-9A-Fa-f]{6}\s+", following) is None:
+                continue
+            if accumulator_spill_pattern.match(following):
+                assignments[name] = "R11"
+                break
+            register_spill = register_spill_pattern.match(following)
+            if register_spill is None:
+                break
+            spilled_registers.append(register_spill.group(1).upper())
+            if len(spilled_registers) == 2:
+                word_numbers = sorted(
+                    int(register[2:])
+                    for register in spilled_registers
+                    if re.fullmatch(r"WR\d+", register)
+                )
+                if (
+                    len(word_numbers) == 2
+                    and word_numbers[0] % 4 == 0
+                    and word_numbers[1] == word_numbers[0] + 2
+                ):
+                    assignments[name] = f"DR{word_numbers[0]}"
+                break
+        if name not in assignments and len(spilled_registers) == 1:
+            assignments[name] = spilled_registers[0]
+    return assignments
+
+
+def dependency_parameters(
+    function: dict[str, object],
+    image: str,
+    listing: Path | None = None,
+    symbol: str | None = None,
+    symbols: dict[str, int] | None = None,
+) -> tuple[tuple[str, str, int], ...]:
+    parameters = []
+    image_parameters = function.get(f"{image}_dependency_parameters")
+    raw_parameters = (
+        image_parameters
+        if image_parameters is not None
+        else function.get("parameters", [])
+    )
+    parsed_parameters = []
+    for raw_parameter in raw_parameters:
+        parameter = str(raw_parameter)
+        fields = parameter.rsplit(":", 2)
+        if len(fields) != 3:
+            continue
+        parsed = abi_register(f"{fields[1]}:{fields[2]}")
+        if parsed is None:
+            continue
+        parsed_parameters.append(
+            (fields[0].split(":", 1)[0], parsed[0], parsed[1])
+        )
+    memory_locations = {
+        normalize_parameter_name(str(name)): resolve_parameter_memory_location(
+            str(location), symbols or {}
+        )
+        for name, location in dict(
+            function.get(f"{image}_parameter_memory", {})
+        ).items()
+    }
+    reconstructed_registers: dict[str, str] = {}
+    reconstructed_parameter_names = {
+        normalize_parameter_name(name)
+        for name, _, _ in parsed_parameters
+        if normalize_parameter_name(name) not in memory_locations
+    }
+    if (
+        image == "reconstructed"
+        and function.get("reconstructed_dependency_parameters") is None
+        and reconstructed_parameter_names
+    ):
+        if listing is None or symbol is None:
+            raise SimulatorError(
+                f"no listing is available to recover the reconstructed ABI for {function['symbol']}"
+            )
+        reconstructed_registers = parse_listing_parameter_registers(
+            listing,
+            symbol,
+            reconstructed_parameter_names,
+        )
+    for name, register, width in parsed_parameters:
+        normalized = normalize_parameter_name(name)
+        if normalized in memory_locations:
+            register = f"XDATA@0x{memory_locations[normalized]:06x}"
+            parameters.append((name, register, width))
+            continue
+        if reconstructed_registers:
+            if normalized not in reconstructed_registers:
+                raise SimulatorError(
+                    f"{listing}: cannot recover reconstructed parameter {name} for {symbol}"
+                )
+            register = reconstructed_registers[normalized]
+        parameters.append((name, register, width))
+    return tuple(parameters)
+
+
+def remap_direct_case_registers(
+    case: dict[str, object],
+    stock_parameters: tuple[tuple[str, str, int], ...],
+    reconstructed_parameters: tuple[tuple[str, str, int], ...],
+) -> dict[str, object]:
+    registers = dict(case.get("registers", {}))
+    stock_by_name = {
+        normalize_parameter_name(name): register
+        for name, register, _ in stock_parameters
+    }
+    values = {
+        name: int(registers[register])
+        for name, register in stock_by_name.items()
+        if register in registers
+    }
+    memory = [dict(region) for region in case.get("memory", [])]
+    ignored_memory = [dict(region) for region in case.get("ignored_memory", [])]
+    for name, register, width in reconstructed_parameters:
+        value = values.get(normalize_parameter_name(name))
+        if value is not None:
+            if register.startswith("XDATA@"):
+                address = int(register.partition("@")[2], 0)
+                memory.append(
+                    {
+                        "address": f"0x{address:06x}",
+                        "bytes": [
+                            (value >> (8 * (width - offset - 1))) & 0xFF
+                            for offset in range(width)
+                        ],
+                    }
+                )
+                ignored_memory.append(
+                    {"address": f"0x{address:06x}", "length": width}
+                )
+            else:
+                registers[register] = value
+    remapped = dict(case)
+    remapped["registers"] = registers
+    remapped["memory"] = memory
+    remapped["ignored_memory"] = ignored_memory
+    return remapped
+
+
+def resolve_dependency_stubs(
+    case: dict[str, object],
+    function_metadata: dict[str, object],
+    metadata: dict[str, object],
+    symbols: dict[str, int],
+    image: str,
+    listings: dict[str, Path] | None = None,
+) -> tuple[
+    list[tuple[int, str, list[tuple[str, int]]]],
+    list[int],
+    list[DependencyTracepoint],
+]:
+    if case["mode"] != "isolated":
+        return [], [], []
+    requested = (
+        case["dependencies"]
+        if "dependencies" in case
+        else function_metadata.get("calls", [])
+    )
+    functions = {
+        str(function["canonical_address"]): function
+        for function in metadata["functions"]
+    }
+    identifiers = {
+        str(function["canonical_address"]): index
+        for index, function in enumerate(metadata["functions"])
+    }
+    stubs: list[tuple[int, str, list[tuple[str, int]]]] = []
+    stops: list[int] = []
+    tracepoints: list[DependencyTracepoint] = []
+    seen: set[int] = set()
+    for dependency in requested:
+        if isinstance(dependency, dict):
+            canonical = str(
+                dependency.get("function") or dependency.get("canonical_address") or ""
+            )
+        else:
+            canonical = str(dependency)
+        canonical = canonical.replace("RAM:", "0x").lower()
+        target = functions.get(canonical)
+        if target is None:
+            raise SimulatorError(
+                f"{case['id']}: dependency {canonical!r} is absent from offline metadata"
+            )
+        dependency_listing = None
+        dependency_symbol = None
+        if image == "stock":
+            address = int(canonical, 0)
+            kinds = {
+                str(site).rsplit(":", 1)[-1]
+                for site in target.get("return_sites", [])
+            }
+            shared_tail_sites: list[tuple[int, str]] = []
+            if not kinds:
+                shared_tail_sites = canonical_shared_tail_return_sites(
+                    target, metadata
+                )
+                kinds = {kind for _, kind in shared_tail_sites}
+            if not kinds:
+                kinds = set(target.get("reconstructed_return_kinds", []))
+            return_thunk = None
+            if kinds == {"ret"}:
+                return_thunk = next(
+                    (
+                        int(str(site).rsplit(":", 1)[0].split(":")[-1], 16)
+                        for site in target.get("return_sites", [])
+                        if str(site).rsplit(":", 1)[-1] == "ret"
+                    ),
+                    None,
+                )
+                if return_thunk is None:
+                    return_thunk = next(
+                        (
+                            site
+                            for site, kind in shared_tail_sites
+                            if kind == "ret"
+                        ),
+                        None,
+                    )
+        else:
+            symbol = str(
+                dependency.get("reconstructed_symbol")
+                if isinstance(dependency, dict)
+                and dependency.get("reconstructed_symbol")
+                else target.get("reconstructed_dependency_symbol")
+                or target.get("reconstructed_symbol")
+                or target["symbol"]
+            )
+            dependency_symbol = symbol
+            address = symbols.get(symbol, -1)
+            kinds = set(target.get("reconstructed_return_kinds", []))
+            return_thunk = None
+            if address < 0:
+                raise SimulatorError(
+                    f"{case['id']}: reconstructed dependency {symbol} is absent from the map"
+                )
+            if kinds == {"ret"}:
+                listing = function_listing(target, symbol, listings or {})
+                if listing is None:
+                    raise SimulatorError(
+                        f"{case['id']}: no listing contains near-return dependency {symbol}"
+                    )
+                returns = [
+                    offset
+                    for offset, kind in parse_listing_returns(listing, symbol)
+                    if kind == "ret"
+                ]
+                if not returns:
+                    raise SimulatorError(
+                        f"{case['id']}: {symbol} has no reconstructed RET instruction"
+                    )
+                return_thunk = address + returns[0]
+            dependency_listing = function_listing(target, symbol, listings or {})
+        if address in seen:
+            continue
+        if isinstance(dependency, dict) and dependency.get("nonreturn"):
+            if address not in stops:
+                stops.append(address)
+                tracepoints.append(
+                    DependencyTracepoint(
+                        address,
+                        canonical,
+                        dependency_parameters(
+                            target,
+                            image,
+                            dependency_listing,
+                            dependency_symbol,
+                            symbols,
+                        ),
+                        identifiers[canonical],
+                        stop=True,
+                        code_parameters=tuple(
+                            str(name)
+                            for name in target.get("dependency_code_parameters", [])
+                        ),
+                        memory_writes=dependency_memory_writes(
+                            str(case["id"]), dependency
+                        ),
+                        bit_writes=dependency_bit_writes(
+                            str(case["id"]), dependency
+                        ),
+                    )
+                )
+            seen.add(address)
+            continue
+        if len(kinds) != 1:
+            raise SimulatorError(
+                f"{case['id']}: dependency {canonical} has ambiguous return kinds {sorted(kinds)}"
+            )
+        assignments: list[tuple[str, int]] = []
+        if isinstance(dependency, dict):
+            raw_results = dependency.get("returns")
+            if raw_results is None and dependency.get("return") is not None:
+                raw_results = [dependency["return"]]
+            if raw_results is not None:
+                if not isinstance(raw_results, list):
+                    raise SimulatorError(
+                        f"{case['id']}: dependency returns must be an array"
+                    )
+                for result in raw_results:
+                    if not isinstance(result, dict) or not isinstance(
+                        result.get("register"), str
+                    ):
+                        raise SimulatorError(
+                            f"{case['id']}: invalid dependency return specification"
+                        )
+                    assignments.append(
+                        (str(result["register"]), int(result.get("value", 0)))
+                    )
+        return_kind = kinds.pop()
+        if return_kind == "ret" and return_thunk is None:
+            raise SimulatorError(
+                f"{case['id']}: dependency {canonical} has no verified RET instruction"
+            )
+        seen.add(address)
+        stubs.append((address, return_kind, assignments))
+        tracepoints.append(
+            DependencyTracepoint(
+                address,
+                canonical,
+                dependency_parameters(
+                    target,
+                    image,
+                    dependency_listing,
+                    dependency_symbol,
+                    symbols,
+                ),
+                identifiers[canonical],
+                return_kind,
+                tuple(assignments),
+                return_thunk,
+                code_parameters=tuple(
+                    str(name)
+                    for name in target.get("dependency_code_parameters", [])
+                ),
+                memory_writes=dependency_memory_writes(
+                    str(case["id"]), dependency
+                ),
+                bit_writes=dependency_bit_writes(
+                    str(case["id"]), dependency
+                ),
+            )
+        )
+    return stubs, stops, tracepoints
+
+
+def dependency_tracepoint_key(tracepoint: DependencyTracepoint) -> tuple[object, ...]:
+    return (
+        tracepoint.identifier,
+        tracepoint.parameters,
+        tracepoint.return_kind,
+        tracepoint.assignments,
+        tracepoint.return_thunk,
+        tracepoint.code_parameters,
+        tracepoint.memory_writes,
+        tracepoint.bit_writes,
+    )
+
+
+def render_trace_assignment(register: str, value: int) -> str:
+    if register in ("ACC", "R11"):
+        return f"MOV R11,#0{value & 0xFF:02X}H"
+    if re.fullmatch(r"R(?:[0-9]|1[0-5])", register):
+        return f"MOV {register},#0{value & 0xFF:02X}H"
+    if re.fullmatch(r"WR(?:0|2|4|6|8|10|12|14)", register):
+        return f"MOV {register},#0{value & 0xFFFF:04X}H"
+    if re.fullmatch(r"DR(?:0|4|8|12)", register):
+        return f"MOV {register},#0{value & 0xFFFFFFFF:08X}H"
+    raise SimulatorError(f"unsupported trace-stub result register {register}")
+
+
+def dependency_memory_writes(
+    case_id: str, dependency: object
+) -> tuple[tuple[int, int], ...]:
+    if not isinstance(dependency, dict):
+        return ()
+    raw_writes = dependency.get("memory_writes", [])
+    if not isinstance(raw_writes, list):
+        raise SimulatorError(
+            f"{case_id}: dependency memory_writes must be an array"
+        )
+    writes: list[tuple[int, int]] = []
+    for raw_write in raw_writes:
+        if not isinstance(raw_write, dict) or "address" not in raw_write:
+            raise SimulatorError(
+                f"{case_id}: dependency memory write requires an address"
+            )
+        address = int(str(raw_write["address"]), 0)
+        values = raw_write.get("bytes")
+        if not isinstance(values, list) or not values:
+            raise SimulatorError(
+                f"{case_id}: dependency memory write requires non-empty bytes"
+            )
+        for offset, raw_value in enumerate(values):
+            value = int(raw_value)
+            target = address + offset
+            if not 0 <= target <= 0xFFFF or not 0 <= value <= 0xFF:
+                raise SimulatorError(
+                    f"{case_id}: dependency memory write is outside near RAM"
+                )
+            writes.append((target, value))
+    return tuple(writes)
+
+
+def dependency_bit_writes(
+    case_id: str, dependency: object
+) -> tuple[tuple[int, int], ...]:
+    if not isinstance(dependency, dict):
+        return ()
+    raw_writes = dependency.get("bit_writes", [])
+    if not isinstance(raw_writes, list):
+        raise SimulatorError(f"{case_id}: dependency bit_writes must be an array")
+    writes: list[tuple[int, int]] = []
+    for raw_write in raw_writes:
+        if not isinstance(raw_write, dict) or "address" not in raw_write:
+            raise SimulatorError(f"{case_id}: dependency bit write requires an address")
+        address = int(str(raw_write["address"]), 0)
+        value = int(raw_write.get("value", -1))
+        if not 0 <= address <= 0xFF or value not in (0, 1):
+            raise SimulatorError(
+                f"{case_id}: dependency bit write requires BITS:0000-BITS:00ff and value 0 or 1"
+            )
+        writes.append((address, value))
+    return tuple(writes)
+
+
+def render_dependency_trace_assembly(
+    tracepoints: list[DependencyTracepoint],
+) -> tuple[str, dict[tuple[object, ...], str]]:
+    unique: dict[tuple[object, ...], DependencyTracepoint] = {}
+    for tracepoint in tracepoints:
+        if tracepoint.stop or tracepoint.return_kind is None:
+            continue
+        unique.setdefault(dependency_tracepoint_key(tracepoint), tracepoint)
+    lines = [
+        "$MODSRC",
+        "$CASE",
+        "NAME PLEXTOR_DEPENDENCY_TRACE_SHIMS",
+        "PSW DATA 0D0H",
+        "B DATA 0F0H",
+        "EXTRN ECODE (PlextorTraceRecord?)",
+        "PLEXTOR_DEPENDENCY_TRACE_SHIMS SEGMENT ECODE",
+        "RSEG PLEXTOR_DEPENDENCY_TRACE_SHIMS",
+    ]
+    symbols: dict[tuple[object, ...], str] = {}
+    for index, (key, tracepoint) in enumerate(unique.items()):
+        symbol = f"PlextorDependencyTraceShim{index}"
+        symbols[key] = symbol
+        lines.extend(
+            (
+                f"PUBLIC {symbol}?",
+                f"{symbol}?:",
+                "    PUSH DR0",
+                "    PUSH DR4",
+                "    PUSH DR8",
+                "    PUSH DR12",
+                "    PUSH PSW",
+            )
+        )
+        for parameter_index, (_, register, width) in enumerate(
+            tracepoint.parameters
+        ):
+            address = 0x45D4 + parameter_index * 4 + (4 - width)
+            if register == "B":
+                lines.extend(
+                    (
+                        "    MOV R15,B",
+                        f"    MOV EDATA 0{address:04X}H,R15",
+                    )
+                )
+            elif register.startswith("XDATA@"):
+                source_address = int(register.partition("@")[2], 0)
+                if width != 1:
+                    raise SimulatorError(
+                        "dependency trace memory parameters currently require byte width"
+                    )
+                lines.extend(
+                    (
+                        f"    MOV DPTR,#0{source_address:06X}H",
+                        "    MOVX A,@DPTR",
+                        f"    MOV EDATA 0{address:04X}H,A",
+                    )
+                )
+            else:
+                lines.append(f"    MOV EDATA 0{address:04X}H,{register}")
+        lines.extend(
+            (
+                f"    MOV WR14,#0{tracepoint.identifier:04X}H",
+                "    MOV EDATA 045D0H,WR14",
+                f"    MOV R15,#0{len(tracepoint.parameters):02X}H",
+                "    MOV EDATA 045D2H,R15",
+                "    ECALL PlextorTraceRecord?",
+                "    POP PSW",
+                "    POP DR12",
+                "    POP DR8",
+                "    POP DR4",
+                "    POP DR0",
+            )
+        )
+        for register, value in tracepoint.assignments:
+            lines.append(f"    {render_trace_assignment(register, value)}")
+        if tracepoint.memory_writes:
+            lines.append("    PUSH DR12")
+            for address, value in tracepoint.memory_writes:
+                lines.extend(
+                    (
+                        f"    MOV R15,#0{value:02X}H",
+                        f"    MOV EDATA 0{address:04X}H,R15",
+                    )
+                )
+            lines.append("    POP DR12")
+        for address, value in tracepoint.bit_writes:
+            lines.append(f"    {'SETB' if value else 'CLR'} 0{address:02X}H")
+        if tracepoint.return_kind == "ret":
+            assert tracepoint.return_thunk is not None
+            lines.append(f"    EJMP 0{tracepoint.return_thunk:06X}H")
+        else:
+            lines.append(f"    {str(tracepoint.return_kind).upper()}")
+    lines.append("END")
+    return "\n".join(lines) + "\n", symbols
+
+
+def build_dependency_trace_overlay(
+    tracepoints: list[DependencyTracepoint],
+    directory: Path,
+    driver: Path,
+    c251: Path,
+    a251: Path,
+    l251: Path,
+    keil_root: Path,
+) -> tuple[Path | None, dict[tuple[object, ...], int]]:
+    source, symbol_names = render_dependency_trace_assembly(tracepoints)
+    if not symbol_names:
+        return None, {}
+    directory.mkdir(parents=True, exist_ok=True)
+    assembly = directory / "dependency_trace_shims.a51"
+    assembly.write_text(source, encoding="ascii")
+    recorder_source = Path(__file__).with_name("trace_recorder.c")
+    run_keil_driver(
+        driver,
+        c251,
+        keil_root,
+        "dependency_trace_recorder_compile",
+        "dependency_trace_recorder.obj",
+        [
+            str(recorder_source),
+            "MODSRC",
+            "ROM(HUGE)",
+            "LARGE",
+            "REGPARMS",
+            "PARM251",
+            "OPTIMIZE(5,SIZE)",
+            "CODE",
+            "OBJECT(dependency_trace_recorder.obj)",
+            "PRINT(dependency_trace_recorder.lst)",
+        ],
+        directory,
+    )
+    run_keil_driver(
+        driver,
+        a251,
+        keil_root,
+        "dependency_trace_shims_assemble",
+        "dependency_trace_shims.obj",
+        [
+            str(assembly),
+            "MODSRC",
+            "OBJECT(dependency_trace_shims.obj)",
+            "PRINT(dependency_trace_shims.lst)",
+        ],
+        directory,
+    )
+    overlay = directory / "dependency_trace.abs"
+    run_keil_driver(
+        driver,
+        l251,
+        keil_root,
+        "dependency_trace_link",
+        overlay.name,
+        [
+            "dependency_trace_recorder.obj,dependency_trace_shims.obj",
+            "TO",
+            overlay.name,
+            "CLASSES(ECODE(0xF00000-0xF6FFFF))",
+            "NOOVERLAY",
+            "PRINT(dependency_trace.map)",
+        ],
+        directory,
+    )
+    addresses = parse_keil_map(directory / "dependency_trace.map")
+    return overlay, {
+        key: addresses[symbol]
+        for key, symbol in symbol_names.items()
+    }
+
+
+def resolve_code_patches(
+    case: dict[str, object], symbols: dict[str, int], image: str
+) -> list[tuple[int, list[int]]]:
+    resolved = []
+    for patch in case.get("code_patches", []):
+        if not isinstance(patch, dict) or not patch.get("reason"):
+            raise SimulatorError(f"{case['id']}: code patch requires a reason")
+        if image == "stock":
+            raw_address = patch.get("stock_address")
+            raw_bytes = patch.get("stock_bytes")
+            if raw_address is None or raw_bytes is None:
+                continue
+            address = int(str(raw_address), 0)
+        else:
+            raw_bytes = patch.get("reconstructed_bytes")
+            jump_offset = patch.get("reconstructed_jump_offset")
+            symbol = patch.get("reconstructed_symbol")
+            raw_address = patch.get("reconstructed_address")
+            if raw_bytes is None and jump_offset is None:
+                continue
+            if raw_bytes is not None and jump_offset is not None:
+                raise SimulatorError(
+                    f"{case['id']}: reconstructed code patch bytes and jump are mutually exclusive"
+                )
+            if symbol is not None:
+                address = symbols.get(str(symbol), -1)
+                if address < 0:
+                    raise SimulatorError(
+                        f"{case['id']}: patch symbol {symbol} is absent from the map"
+                    )
+                address += int(patch.get("reconstructed_offset", 0))
+            elif raw_address is not None:
+                address = int(str(raw_address), 0)
+            else:
+                raise SimulatorError(
+                    f"{case['id']}: reconstructed code patch requires a symbol or address"
+                )
+            if jump_offset is not None:
+                if symbol is None or not isinstance(jump_offset, int) or jump_offset < 0:
+                    raise SimulatorError(
+                        f"{case['id']}: reconstructed jump requires a symbol and nonnegative offset"
+                    )
+                target_symbol = str(patch.get("reconstructed_jump_symbol", symbol))
+                target = symbols.get(target_symbol, -1)
+                if target < 0:
+                    raise SimulatorError(
+                        f"{case['id']}: jump target symbol {target_symbol} is absent from the map"
+                    )
+                target += jump_offset
+                if target > 0xFFFFFF:
+                    raise SimulatorError(
+                        f"{case['id']}: reconstructed jump target is outside 24-bit code"
+                    )
+                raw_bytes = [
+                    0x8A,
+                    (target >> 16) & 0xFF,
+                    (target >> 8) & 0xFF,
+                    target & 0xFF,
+                ]
+        if not isinstance(raw_bytes, list) or not raw_bytes:
+            raise SimulatorError(f"{case['id']}: code patch bytes must be a nonempty array")
+        values = [int(value) for value in raw_bytes]
+        if any(not 0 <= value <= 0xFF for value in values):
+            raise SimulatorError(f"{case['id']}: code patch byte is out of range")
+        resolved.append((address, values))
+    return resolved
+
+
+def simulator_hdata_banks(function: dict[str, object]) -> set[int]:
+    banks = {int(value) for value in function.get("simulator_hdata_banks", [])}
+    for reference in function.get("memory_references", []):
+        match = re.fullmatch(r"RAM:([0-9a-fA-F]+)", str(reference))
+        if match is None:
+            continue
+        address = int(match.group(1), 16)
+        if 0x020000 <= address < 0xF70000:
+            banks.add(address >> 16)
+    return {bank for bank in banks if 0 < bank <= 0xFFFF}
+
+
+def simulator_hdata_relocations(function: dict[str, object]) -> dict[int, int]:
+    relocations = {bank: 0 for bank in simulator_hdata_banks(function)}
+    for raw_bank, raw_target in dict(
+        function.get("simulator_hdata_bank_relocations", {})
+    ).items():
+        bank = int(str(raw_bank), 0)
+        target = int(raw_target)
+        if bank not in relocations or not 0 <= target <= 0xFFFF:
+            raise SimulatorError(
+                f"invalid simulator HDATA relocation {raw_bank!r}: {raw_target!r}"
+            )
+        relocations[bank] = target
+    return relocations
+
+
+def simulator_hdata_stock_instruction_addresses(
+    function: dict[str, object],
+) -> list[object] | None:
+    addresses = function.get("simulator_hdata_stock_instruction_addresses")
+    if addresses is not None:
+        return list(addresses)
+    fallback = function.get("stock_hdata_instruction_addresses")
+    return None if fallback is None else list(fallback)
+
+
+def integrated_functions(
+    root: dict[str, object],
+    metadata: dict[str, object],
+    case: dict[str, object],
+) -> list[dict[str, object]]:
+    functions = {
+        int(str(function["canonical_address"]), 0): function
+        for function in metadata["functions"]
+    }
+    isolated = set()
+    for dependency in case.get("dependencies", []):
+        raw = dependency.get("function") if isinstance(dependency, dict) else dependency
+        if raw is not None:
+            isolated.add(int(str(raw).replace("RAM:", "0x"), 0))
+    pending = [int(str(root["canonical_address"]), 0)]
+    reachable = []
+    seen = set()
+    while pending:
+        address = pending.pop()
+        if address in seen:
+            continue
+        seen.add(address)
+        function = functions.get(address)
+        if function is None:
+            continue
+        reachable.append(function)
+        for raw_call in function.get("calls", []):
+            call = int(str(raw_call).replace("RAM:", "0x"), 0)
+            if call not in isolated:
+                pending.append(call)
+    return reachable
+
+
+def listing_function_module_rows(path: Path, symbol: str) -> list[tuple[int, bytes]]:
+    text = path.read_text(encoding="latin-1")
+    block = listing_function_block(text, symbol)
+    if block is None:
+        return []
+    rows = [
+        (int(match.group(1), 16), bytes.fromhex(match.group(2)))
+        for match in re.finditer(
+            r"(?m)^(?![^\r\n]*:\s*$)([0-9A-Fa-f]{6})\s+"
+            r"([0-9A-Fa-f]+)(?:\s|$)",
+            block,
+        )
+    ]
+    return rows
+
+
+def listing_function_rows(path: Path, symbol: str) -> list[tuple[int, bytes]]:
+    rows = listing_function_module_rows(path, symbol)
+    if not rows:
+        return []
+    first = rows[0][0]
+    return [(address - first, opcode) for address, opcode in rows]
+
+
+def listing_module_rows(path: Path) -> list[tuple[int, bytes]]:
+    text = path.read_text(encoding="latin-1")
+    return [
+        (int(match.group(1), 16), bytes.fromhex(match.group(2)))
+        for match in re.finditer(
+            r"(?m)^(?![^\r\n]*:\s*$)([0-9A-Fa-f]{6})\s+"
+            r"([0-9A-Fa-f]+)(?:\s|$)",
+            text,
+        )
+    ]
+
+
+def hdata_bank_instruction_patch(opcode: bytes, banks: set[int]) -> int | None:
+    if len(opcode) >= 3 and opcode[0] == 0x4E and opcode[2] in banks:
+        return 2
+    if len(opcode) != 4 or opcode[0] not in (0x2E, 0x7E):
+        return None
+    immediate = (opcode[2] << 8) | opcode[3]
+    return 2 if immediate in banks else None
+
+
+def hdata_bank_instruction_replacement(
+    opcode: bytes, relocations: dict[int, int]
+) -> tuple[int, list[int]] | None:
+    patch_offset = hdata_bank_instruction_patch(opcode, set(relocations))
+    if patch_offset is None:
+        return None
+    if opcode[0] == 0x4E:
+        return patch_offset, [relocations[opcode[2]] & 0xFF]
+    bank = (opcode[2] << 8) | opcode[3]
+    target = relocations[bank]
+    return patch_offset, [(target >> 8) & 0xFF, target & 0xFF]
+
+
+def automatic_hdata_relocation_patches(
+    case: dict[str, object],
+    root: dict[str, object],
+    metadata: dict[str, object],
+    symbols: dict[str, int],
+    listings: dict[str, Path],
+    stock: Path,
+) -> tuple[list[tuple[int, list[int]]], list[tuple[int, list[int]]]]:
+    stock_image = stock.read_bytes()
+    stock_patches: dict[int, list[int]] = {}
+    reconstructed_patches: dict[int, list[int]] = {}
+    for function in integrated_functions(root, metadata, case):
+        relocations = simulator_hdata_relocations(function)
+        if not relocations:
+            continue
+        raw_stock_addresses = simulator_hdata_stock_instruction_addresses(
+            function
+        )
+        if raw_stock_addresses is None:
+            raise SimulatorError(
+                f"{function['symbol']}: HDATA relocation requires verified stock instruction addresses"
+            )
+        for raw_address in raw_stock_addresses:
+            address = int(str(raw_address), 0)
+            image_offset = address - 0xF80000
+            if image_offset < 0 or image_offset + 4 > len(stock_image):
+                raise SimulatorError(
+                    f"{function['symbol']}: invalid stock instruction address {raw_address}"
+                )
+            patch = hdata_bank_instruction_replacement(
+                stock_image[image_offset : image_offset + 4], relocations
+            )
+            if patch is not None:
+                patch_offset, replacement = patch
+                stock_patches[address + patch_offset] = replacement
+        symbol = str(
+            function.get("reconstructed_symbol") or function["symbol"]
+        )
+        entry = symbols.get(symbol)
+        listing = function_listing(function, symbol, listings)
+        if entry is None or listing is None:
+            continue
+        function_rows = listing_function_module_rows(listing, symbol)
+        if not function_rows:
+            continue
+        module_base = entry - function_rows[0][0]
+        for module_offset, opcode in listing_module_rows(listing):
+            patch = hdata_bank_instruction_replacement(opcode, relocations)
+            if patch is not None:
+                patch_offset, replacement = patch
+                reconstructed_patches[
+                    module_base + module_offset + patch_offset
+                ] = replacement
+    return sorted(stock_patches.items()), sorted(reconstructed_patches.items())
+
+
+def run_differential_case(
+    args: argparse.Namespace,
+    case: dict[str, object],
+    metadata: dict[str, object],
+    symbols: dict[str, int],
+    listings: dict[str, Path],
+) -> dict[str, object]:
+        if case.get("load_monitor", False) and args.monitor_hex is None:
+            raise SimulatorError(
+                f"{case['id']}: load_monitor requires --monitor-hex"
+            )
+        function_metadata = metadata_function(metadata, str(case["function"]))
+        symbol = str(
+            function_metadata.get("reconstructed_symbol") or function_metadata["symbol"]
+        )
+        reconstructed_entry = symbols.get(symbol)
+        if reconstructed_entry is None:
+            raise SimulatorError(f"{case['id']}: {symbol} is absent from {args.map}")
+        return_sites = []
+        for site in function_metadata.get("return_sites", []):
+            address, kind = str(site).rsplit(":", 1)
+            if kind == case["termination"]:
+                return_sites.append(int(address.split(":")[-1], 16))
+        if not return_sites and case["termination"] not in ("shared-tail", "nonreturn"):
+            raise SimulatorError(f"{case['id']}: expected a canonical {case['termination']} site")
+        if case.get("source_listing"):
+            listing = args.listings / Path(str(case["source_listing"])).name
+        else:
+            listing = function_listing(function_metadata, symbol, listings)
+            if listing is None and case["termination"] != "nonreturn":
+                raise SimulatorError(f"{case['id']}: no listing contains {symbol}")
+        if case["termination"] == "nonreturn":
+            reconstructed_termination = "nonreturn"
+            reconstructed_checkpoint_offset = case.get(
+                "reconstructed_nonreturn_checkpoint_offset"
+            )
+            reconstructed_checkpoint_symbol = case.get(
+                "reconstructed_nonreturn_checkpoint_symbol"
+            )
+            if reconstructed_checkpoint_offset is not None:
+                reconstructed_offset = int(reconstructed_checkpoint_offset)
+            elif reconstructed_checkpoint_symbol is not None:
+                reconstructed_checkpoint = symbols.get(
+                    str(reconstructed_checkpoint_symbol)
+                )
+                if reconstructed_checkpoint is None:
+                    raise SimulatorError(
+                        f"{case['id']}: reconstructed nonreturn checkpoint "
+                        f"{reconstructed_checkpoint_symbol} is absent from {args.map}"
+                    )
+                reconstructed_offset = reconstructed_checkpoint - reconstructed_entry
+            elif listing is not None:
+                instructions = parse_listing_instructions(listing, symbol)
+                call_offsets = [
+                    offset
+                    for offset, mnemonic in instructions
+                    if mnemonic in ("call", "ecall", "lcall", "acall")
+                ]
+                reconstructed_offset = min(call_offsets) if call_offsets else instructions[-1][0]
+            else:
+                reconstructed_offset = 0
+            stock_stop = int(str(case["nonreturn_checkpoint"]), 0)
+        else:
+            reconstructed_returns = parse_listing_returns(listing, symbol)
+            reconstructed_kinds = {kind for _, kind in reconstructed_returns}
+            if len(reconstructed_kinds) != 1:
+                raise SimulatorError(f"{case['id']}: reconstructed function has mixed return kinds")
+            reconstructed_termination = reconstructed_kinds.pop()
+            reconstructed_offset = max(offset for offset, _ in reconstructed_returns)
+        reconstructed_return_stops = (
+            [reconstructed_entry + offset for offset, _ in reconstructed_returns]
+            if case["termination"] != "nonreturn"
+            else []
+        )
+        if return_sites:
+            stock_stop = return_sites[0]
+        elif case["termination"] == "shared-tail":
+            stock_stop = max(
+                int(str(body_range).split("..")[-1].split(":")[-1], 16)
+                for body_range in function_metadata.get("body_ranges", [])
+            )
+        if args.stock_application is None:
+            stock_directory = args.output / str(case["id"]) / "stock-application"
+            stock_application = build_stock_application(
+                args.stock,
+                function_metadata,
+                stock_directory,
+                args.keil_driver,
+                args.a251,
+                args.l251,
+                args.keil_root,
+            )
+        else:
+            stock_application = args.stock_application
+        (
+            reconstructed_stubs,
+            reconstructed_dependency_stops,
+            reconstructed_dependency_tracepoints,
+        ) = resolve_dependency_stubs(
+            case, function_metadata, metadata, symbols, "reconstructed", listings
+        )
+        (
+            stock_stubs,
+            stock_dependency_stops,
+            stock_dependency_tracepoints,
+        ) = resolve_dependency_stubs(
+            case, function_metadata, metadata, symbols, "stock", listings
+        )
+        reconstructed_code_patches = resolve_code_patches(
+            case, symbols, "reconstructed"
+        )
+        stock_code_patches = resolve_code_patches(case, symbols, "stock")
+        (
+            automatic_stock_patches,
+            automatic_reconstructed_patches,
+        ) = automatic_hdata_relocation_patches(
+            case,
+            function_metadata,
+            metadata,
+            symbols,
+            listings,
+            args.stock,
+        )
+        stock_code_patches.extend(automatic_stock_patches)
+        reconstructed_code_patches.extend(automatic_reconstructed_patches)
+        reconstructed_trace_shims = {
+            tracepoint.address: args.dependency_trace_addresses[
+                dependency_tracepoint_key(tracepoint)
+            ]
+            for tracepoint in reconstructed_dependency_tracepoints
+            if not tracepoint.stop
+        }
+        stock_trace_shims = {
+            tracepoint.address: args.dependency_trace_addresses[
+                dependency_tracepoint_key(tracepoint)
+            ]
+            for tracepoint in stock_dependency_tracepoints
+            if not tracepoint.stop
+        }
+        stock_parameters = dependency_parameters(function_metadata, "stock")
+        reconstructed_parameters = dependency_parameters(
+            function_metadata,
+            "reconstructed",
+            listing,
+            symbol,
+            symbols,
+        )
+        reconstructed_case = remap_direct_case_registers(
+            case,
+            stock_parameters,
+            reconstructed_parameters,
+        )
+        reconstructed_case = materialize_memory_relocations(
+            reconstructed_case,
+            "reconstructed",
+            args.reconstructed_code_address_map,
+        )
+        stock_case_input = dict(case)
+        stock_case_input["ignored_memory"] = list(
+            reconstructed_case.get("ignored_memory", case.get("ignored_memory", []))
+        )
+        stock_case = materialize_memory_relocations(
+            stock_case_input, "stock", args.stock_code_address_map
+        )
+        wall_timeout = max(args.timeout, int(case.get("wall_timeout", args.timeout)))
+        reconstructed = execute_image(
+            reconstructed_case, "reconstructed", args.application, reconstructed_entry,
+            reconstructed_entry + reconstructed_offset, args.reconstructed_memory_application,
+            args.monitor_hex, args.uv4,
+            args.base_project, args.output, wall_timeout, reconstructed_termination,
+            dependency_stubs=reconstructed_stubs,
+            dependency_stops=reconstructed_dependency_stops,
+            return_stops=reconstructed_return_stops,
+            code_patches=reconstructed_code_patches,
+            dependency_tracepoints=reconstructed_dependency_tracepoints,
+            dependency_trace_overlay=args.dependency_trace_overlay,
+            dependency_trace_shims=reconstructed_trace_shims,
+            dependency_code_map=args.reconstructed_code_address_map,
+        )
+        stock_machine_termination = case.get("stock_return_kind")
+        if (
+            stock_machine_termination is None
+            and case["termination"] == "shared-tail"
+        ):
+            stock_machine_termination = (
+                canonical_shared_tail_return_kind(function_metadata, metadata)
+                or reconstructed_termination
+            )
+        stock = execute_image(
+            stock_case, "stock", stock_application, int(str(case["function"]), 0), stock_stop,
+            args.stock_memory_application, args.monitor_hex, args.uv4,
+            args.base_project, args.output, wall_timeout,
+            stock_machine_termination,
+            dependency_stubs=stock_stubs,
+            dependency_stops=stock_dependency_stops,
+            return_stops=return_sites,
+            code_patches=stock_code_patches,
+            dependency_tracepoints=stock_dependency_tracepoints,
+            dependency_trace_overlay=args.dependency_trace_overlay,
+            dependency_trace_shims=stock_trace_shims,
+            dependency_code_map=args.stock_code_address_map,
+        )
+        stock_entry = int(str(case["function"]), 0)
+        stock_end = max(
+            int(str(body_range).split("..")[-1].split(":")[-1], 16) + 1
+            for body_range in function_metadata.get("body_ranges", [])
+        )
+        reconstructed_rows = (
+            listing_function_rows(listing, symbol) if listing is not None else []
+        )
+        reconstructed_end = (
+            reconstructed_entry
+            + max(offset + len(opcode) for offset, opcode in reconstructed_rows)
+            if reconstructed_rows
+            else reconstructed_entry
+        )
+        differences = compare_results(
+            stock,
+            reconstructed,
+            case,
+            (stock_entry, stock_end),
+            (reconstructed_entry, reconstructed_end),
+        )
+        result = {
+            "id": case["id"],
+            "function": case["function"],
+            "case_sha256": case_definition_sha256(case),
+            "status": "mismatch" if differences else "pass",
+            "differences": differences,
+            "stock": stock,
+            "reconstructed": reconstructed,
+        }
+        return result
+
+
+def command_differential(args: argparse.Namespace) -> int:
+    args.uv4 = args.uv4.resolve()
+    args.base_project = args.base_project.resolve()
+    args.application = args.application.resolve()
+    args.keil_driver = args.keil_driver.resolve()
+    args.keil_root = args.keil_root.resolve()
+    args.a251 = args.a251.resolve()
+    args.l251 = args.l251.resolve()
+    args.stock = args.stock.resolve()
+    reconstructed_image = (
+        args.reconstructed_image.resolve()
+        if args.reconstructed_image is not None
+        else args.stock
+    )
+    args.reconstructed_image = reconstructed_image
+    if args.stock_application is not None:
+        args.stock_application = args.stock_application.resolve()
+    if args.stock_memory_application is None:
+        args.stock_memory_application = build_full_memory_application(
+            args.stock,
+            args.output.resolve() / "_memory" / "stock",
+            args.keil_driver,
+            args.a251,
+            args.l251,
+            args.keil_root,
+        )
+    else:
+        args.stock_memory_application = args.stock_memory_application.resolve()
+        validate_memory_application(args.stock, args.stock_memory_application)
+    if args.no_reconstructed_memory_application:
+        if args.reconstructed_memory_application is not None:
+            raise SimulatorError(
+                "--no-reconstructed-memory-application conflicts with "
+                "--reconstructed-memory-application"
+            )
+        args.reconstructed_memory_application = None
+    elif args.reconstructed_memory_application is None:
+        args.reconstructed_memory_application = build_full_memory_application(
+            reconstructed_image,
+            args.output.resolve() / "_memory" / "reconstructed",
+            args.keil_driver,
+            args.a251,
+            args.l251,
+            args.keil_root,
+        )
+    else:
+        args.reconstructed_memory_application = (
+            args.reconstructed_memory_application.resolve()
+        )
+        validate_memory_application(
+            reconstructed_image, args.reconstructed_memory_application
+        )
+    if args.monitor_hex is not None:
+        args.monitor_hex = args.monitor_hex.resolve()
+    cases = load_cases(args.cases)
+    if args.case_pattern:
+        matcher = re.compile(args.case_pattern)
+        cases = [case for case in cases if matcher.search(str(case["id"]))]
+    if args.case_offset < 0:
+        raise SimulatorError("case-offset must be nonnegative")
+    if args.case_offset:
+        cases = cases[args.case_offset :]
+    if args.max_cases is not None:
+        cases = cases[: args.max_cases]
+    if args.shard_count < 1 or not 0 <= args.shard_index < args.shard_count:
+        raise SimulatorError("shard-index must be in [0, shard-count)")
+    if args.shard_count > 1:
+        cases = cases[args.shard_index :: args.shard_count]
+    if not cases:
+        raise SimulatorError("no differential cases are defined or selected")
+    metadata = load_metadata(args.metadata, args.stock)
+    symbols = parse_keil_map(args.map)
+    listings = index_listings(args.listings)
+    args.stock_code_address_map = {
+        int(str(function["canonical_address"]), 0): int(
+            str(function["canonical_address"]), 0
+        )
+        for function in metadata["functions"]
+    }
+    args.reconstructed_code_address_map = {}
+    for function in metadata["functions"]:
+        symbol = str(function.get("reconstructed_symbol") or function["symbol"])
+        linked = symbols.get(symbol)
+        if linked is not None:
+            args.reconstructed_code_address_map[linked] = int(
+                str(function["canonical_address"]), 0
+            )
+    tracepoints: list[DependencyTracepoint] = []
+    for case in cases:
+        function_metadata = metadata_function(metadata, str(case["function"]))
+        for image in ("stock", "reconstructed"):
+            _, _, resolved_tracepoints = resolve_dependency_stubs(
+                case, function_metadata, metadata, symbols, image, listings
+            )
+            tracepoints.extend(resolved_tracepoints)
+    c251 = args.a251.with_name("C251.EXE")
+    if not c251.is_file():
+        raise SimulatorError(f"C251 compiler is absent: {c251}")
+    (
+        args.dependency_trace_overlay,
+        args.dependency_trace_addresses,
+    ) = build_dependency_trace_overlay(
+        tracepoints,
+        args.output.resolve() / "_trace",
+        args.keil_driver,
+        c251,
+        args.a251,
+        args.l251,
+        args.keil_root,
+    )
+    run_identity = {
+        "runner_sha256": sha256(Path(__file__)),
+        "uv4_sha256": sha256(args.uv4),
+        "base_project_sha256": sha256(args.base_project),
+        "stock_sha256": sha256(args.stock),
+        "application_sha256": sha256(args.application),
+        "stock_memory_sha256": sha256(args.stock_memory_application),
+        "reconstructed_memory_sha256": (
+            sha256(args.reconstructed_memory_application)
+            if args.reconstructed_memory_application is not None
+            else None
+        ),
+        "metadata_sha256": sha256(args.metadata),
+        "map_sha256": sha256(args.map),
+        "monitor_sha256": (
+            sha256(args.monitor_hex) if args.monitor_hex is not None else None
+        ),
+        "dependency_trace_sha256": (
+            sha256(args.output.resolve() / "_trace/dependency_trace_shims.a51")
+            if args.dependency_trace_overlay is not None
+            else None
+        ),
+        "case_ids_sha256": hashlib.sha256(
+            "\n".join(str(case["id"]) for case in cases).encode("utf-8")
+        ).hexdigest(),
+        "cases_sha256": case_set_sha256(cases),
+        "case_count": len(cases),
+        "shard_index": args.shard_index,
+        "shard_count": args.shard_count,
+    }
+    results: list[dict[str, object]] = []
+    completed: set[str] = set()
+    result_path = args.output / "results.json"
+    if args.resume and result_path.is_file():
+        previous = json.loads(result_path.read_text(encoding="utf-8"))
+        results = reusable_results(previous, run_identity, cases)
+        if previous.get("run_identity") != run_identity and not results:
+            raise SimulatorError(
+                f"{result_path}: cannot resume because the runner, simulator, images, metadata, map, or selected cases changed"
+            )
+        completed = {
+            str(result["id"])
+            for result in results
+            if result.get("status") in ("pass", "mismatch")
+        }
+    for case in cases:
+        if str(case["id"]) in completed:
+            print(
+                f"{case['id']}: "
+                f"{next(result['status'] for result in results if result['id'] == case['id'])} "
+                "(resumed)",
+                flush=True,
+            )
+            continue
+        results = [result for result in results if result.get("id") != case["id"]]
+        try:
+            result = run_differential_case(args, case, metadata, symbols, listings)
+        except (OSError, SimulatorError, ValueError, subprocess.SubprocessError) as exc:
+            result = {
+                "id": case["id"],
+                "function": case["function"],
+                "case_sha256": case_definition_sha256(case),
+                "status": "error",
+                "error": str(exc),
+            }
+        results.append(result)
+        print(f"{case['id']}: {result['status']}", flush=True)
+        write_results(args.output, results, run_identity)
+    write_results(args.output, results, run_identity)
+    return 1 if any(result["status"] != "pass" for result in results) else 0
+
+
+def command_report(args: argparse.Namespace) -> int:
+    catalog = build_catalog(args.source_root, args.map, args.metadata)
+    if len(catalog) != CANONICAL_FUNCTION_COUNT:
+        raise SimulatorError(f"source catalog has {len(catalog)} functions, expected {CANONICAL_FUNCTION_COUNT}")
+    cases = load_cases(args.cases)
+    known = {item["canonical_address"] for item in catalog}
+    unknown = sorted({case["function"] for case in cases} - known)
+    if unknown:
+        raise SimulatorError(f"cases reference unknown canonical functions: {', '.join(unknown)}")
+    results = []
+    for result_path in args.results or []:
+        if result_path.exists():
+            results.extend(json.loads(result_path.read_text(encoding="utf-8")).get("results", []))
+    apply_case_evidence(catalog, cases, results)
+    counts = {status: 0 for status in sorted(VALID_EVIDENCE)}
+    for item in catalog:
+        counts[str(item["evidence"])] += 1
+    args.output.mkdir(parents=True, exist_ok=True)
+    report = {"schema_version": SCHEMA_VERSION, "function_count": len(catalog), "evidence_counts": counts, "functions": catalog}
+    (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    lines = ["Keil 80251 differential evidence", f"Functions: {len(catalog)}"]
+    lines.extend(f"{status}: {counts[status]}" for status in sorted(counts))
+    (args.output / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_junit(
+        args.output / "report.junit.xml",
+        function_report_results(catalog, cases, results),
+    )
+    print("\n".join(lines))
+    return 0
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description=__doc__)
+    commands = result.add_subparsers(dest="command", required=True)
+    prepare = commands.add_parser("prepare", help="convert immutable images to addressed Intel HEX")
+    prepare.add_argument("--stock", type=Path, required=True)
+    prepare.add_argument("--monitor", type=Path)
+    prepare.add_argument("--metadata", type=Path)
+    prepare.add_argument("--output", type=Path, required=True)
+    prepare.set_defaults(handler=command_prepare)
+    validate_metadata = commands.add_parser(
+        "validate-metadata", help="validate the committed offline function metadata"
+    )
+    validate_metadata.add_argument("--metadata", type=Path, required=True)
+    validate_metadata.add_argument("--stock", type=Path)
+    validate_metadata.set_defaults(handler=command_validate_metadata)
+    build_stock = commands.add_parser(
+        "build-stock", help="build one absolute S251 application containing the stock image"
+    )
+    build_stock.add_argument("--metadata", type=Path, required=True)
+    build_stock.add_argument("--stock", type=Path, required=True)
+    build_stock.add_argument("--keil-driver", type=Path, required=True)
+    build_stock.add_argument("--keil-root", type=Path, required=True)
+    build_stock.add_argument("--a251", type=Path, required=True)
+    build_stock.add_argument("--l251", type=Path, required=True)
+    build_stock.add_argument("--output", type=Path, required=True)
+    build_stock.set_defaults(handler=command_build_stock)
+    inventory = commands.add_parser(
+        "inventory", help="classify every function into a simulator harness"
+    )
+    inventory.add_argument("--metadata", type=Path, required=True)
+    inventory.add_argument("--output", type=Path, required=True)
+    inventory.set_defaults(handler=command_inventory)
+    generate_cases = commands.add_parser(
+        "generate-cases", help="generate deterministic direct cases from offline metadata"
+    )
+    generate_cases.add_argument("--metadata", type=Path, required=True)
+    generate_cases.add_argument("--overrides", type=Path)
+    generate_cases.add_argument("--output", type=Path, required=True)
+    generate_cases.add_argument("--instruction-limit", type=int, default=100000)
+    generate_cases.set_defaults(handler=command_generate_cases)
+    catalog = commands.add_parser("catalog", help="generate the disposable function catalog")
+    catalog.add_argument("--source-root", type=Path, required=True)
+    catalog.add_argument("--map", type=Path)
+    catalog.add_argument("--metadata", type=Path)
+    catalog.add_argument("--output", type=Path, required=True)
+    catalog.set_defaults(handler=command_catalog)
+    smoke = commands.add_parser("smoke", help="launch the headless Keil simulator")
+    smoke.add_argument("--uv4", type=Path, required=True)
+    smoke.add_argument("--base-project", type=Path, required=True)
+    smoke.add_argument("--application", type=Path, required=True)
+    smoke.add_argument("--memory-application", type=Path, required=True)
+    smoke.add_argument("--output", type=Path, required=True)
+    smoke.add_argument("--timeout", type=int, default=60)
+    smoke.set_defaults(handler=command_smoke)
+    compare = commands.add_parser("compare", help="compare two normalized execution results")
+    compare.add_argument("--case-id", required=True)
+    compare.add_argument("--stock", type=Path, required=True)
+    compare.add_argument("--reconstructed", type=Path, required=True)
+    compare.add_argument("--output", type=Path, required=True)
+    compare.set_defaults(handler=command_compare)
+    differential = commands.add_parser("differential", help="execute stock and reconstructed cases in S251")
+    differential.add_argument("--uv4", type=Path, required=True)
+    differential.add_argument("--base-project", type=Path, required=True)
+    differential.add_argument("--application", type=Path, required=True)
+    differential.add_argument("--keil-driver", type=Path, required=True)
+    differential.add_argument("--keil-root", type=Path, required=True)
+    differential.add_argument("--a251", type=Path, required=True)
+    differential.add_argument("--l251", type=Path, required=True)
+    differential.add_argument("--stock", type=Path, required=True)
+    differential.add_argument("--stock-application", type=Path)
+    differential.add_argument("--stock-memory-application", type=Path)
+    differential.add_argument("--reconstructed-image", type=Path)
+    differential.add_argument("--reconstructed-memory-application", type=Path)
+    differential.add_argument(
+        "--no-reconstructed-memory-application", action="store_true"
+    )
+    differential.add_argument("--monitor-hex", type=Path)
+    differential.add_argument("--map", type=Path, required=True)
+    differential.add_argument("--listings", type=Path, required=True)
+    differential.add_argument("--metadata", type=Path, required=True)
+    differential.add_argument("--cases", type=Path, required=True)
+    differential.add_argument("--output", type=Path, required=True)
+    differential.add_argument("--timeout", type=int, default=60)
+    differential.add_argument("--case-pattern")
+    differential.add_argument("--max-cases", type=int)
+    differential.add_argument("--case-offset", type=int, default=0)
+    differential.add_argument("--resume", action="store_true")
+    differential.add_argument("--shard-count", type=int, default=1)
+    differential.add_argument("--shard-index", type=int, default=0)
+    differential.set_defaults(handler=command_differential)
+    report = commands.add_parser("report", help="account for every canonical function")
+    report.add_argument("--source-root", type=Path, required=True)
+    report.add_argument("--cases", type=Path, action="append", required=True)
+    report.add_argument("--map", type=Path)
+    report.add_argument("--metadata", type=Path)
+    report.add_argument("--results", type=Path, action="append")
+    report.add_argument("--output", type=Path, required=True)
+    report.set_defaults(handler=command_report)
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
+    try:
+        return int(args.handler(args))
+    except (OSError, SimulatorError, ValueError, json.JSONDecodeError) as exc:
+        print(f"simulator: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

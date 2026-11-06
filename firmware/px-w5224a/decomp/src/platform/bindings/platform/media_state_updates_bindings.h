@@ -1,0 +1,106 @@
+#include "platform/firmware_map.h"
+
+/* Host/target substitutions for the corresponding firmware unit.
+ * Intentionally included more than once with PLEXTOR_BINDING_SECTION. */
+
+#if PLEXTOR_BINDING_SECTION == 1
+#if defined(PLEXTOR_HOST_TEST)
+extern void ObserveAdvanceOperatingUpdateStageAtFrameBoundaries(void);
+extern void ObserveUpdateMeasurementPositionSnapshotState(void);
+extern void ObserveUpdateWriteSpeedFlagsAfterPositionCount(void);
+extern void ObserveServiceControllerOperatingThresholdSamplingCycle(void);
+extern void ObserveRecomputeMediaState5ControllerThresholdForUpdates(void);
+extern void ObserveApplyControllerRegisterProfileForUpdates(u8 coordinate, u8 operating_code);
+extern void ObserveUpdateSecondaryControllerOperatingProfile(void);
+extern u8 ObserveReadBit0044ForReadAcquisitionTarget(void);
+extern void ObserveWriteControllerParametersEAEBForReadTarget(u16 value);
+extern void ObserveWriteControllerParametersD4E2ForReadTarget(u8 code);
+extern void ObserveWriteControllerParametersE8E9ForReadTarget(u8 value);
+extern void ObserveSetCurrentOperatingCodeWithHighCodeTransitionFloor(u8 requested_operating_code);
+extern void ObserveConfigureControllerForOperatingCodeThreshold(u32 threshold_value);
+extern u8 ObserveReadBit0033ForMediaState5Position(void);
+extern void ObserveWriteControllerParameterEF00ForMediaState5(u8 value);
+extern void ObserveUpdateControllerOperatingCodeEnableForMediaState5(void);
+extern void ObserveConvertFramePositionToBinaryMsfForMediaState5(u16 output_tuple_address, s32 frame_position);
+extern u8 ObserveBinaryByteToPackedBcdForMediaState5(u8 value);
+extern void ObserveResetControllerCommand0EForDiscControl(void);
+extern u8 ObserveIndexedDriveStateForDiscControl(u8 state_code);
+extern void ObserveReadDriveConfigurationForDiscControl(fw_addr_t destination, u16 offset, u16 count);
+
+#define DispatchAdvanceOperatingUpdateStageAtFrameBoundaries() ObserveAdvanceOperatingUpdateStageAtFrameBoundaries()
+#define DispatchUpdateMeasurementPositionSnapshotState() ObserveUpdateMeasurementPositionSnapshotState()
+#define DispatchUpdateWriteSpeedFlagsAfterPositionCount() ObserveUpdateWriteSpeedFlagsAfterPositionCount()
+#define DispatchServiceControllerOperatingThresholdSamplingCycle() ObserveServiceControllerOperatingThresholdSamplingCycle()
+#define DispatchRecomputeMediaState5ControllerThreshold() ObserveRecomputeMediaState5ControllerThresholdForUpdates()
+#define DispatchApplyControllerRegisterProfile(coordinate, operating_code) ObserveApplyControllerRegisterProfileForUpdates((coordinate), (operating_code))
+#define DispatchUpdateSecondaryControllerOperatingProfile() ObserveUpdateSecondaryControllerOperatingProfile()
+#define DispatchReadBit0044ForReadAcquisitionTarget() ObserveReadBit0044ForReadAcquisitionTarget()
+#define DispatchWriteControllerParametersEAEB(value) ObserveWriteControllerParametersEAEBForReadTarget(value)
+#define DispatchWriteControllerParametersD4E2(code) ObserveWriteControllerParametersD4E2ForReadTarget(code)
+#define DispatchWriteControllerParametersE8E9(value) ObserveWriteControllerParametersE8E9ForReadTarget(value)
+#define DispatchSetCurrentOperatingCodeWithHighCodeTransitionFloor(value) ObserveSetCurrentOperatingCodeWithHighCodeTransitionFloor(value)
+#define DispatchConfigureControllerForOperatingCodeThreshold(value) ObserveConfigureControllerForOperatingCodeThreshold(value)
+#define DispatchReadBit0033ForMediaState5Position() ObserveReadBit0033ForMediaState5Position()
+#define DispatchWriteControllerParameterEF00ForMediaState5(value) ObserveWriteControllerParameterEF00ForMediaState5(value)
+#define DispatchUpdateControllerOperatingCodeEnableForMediaState5() ObserveUpdateControllerOperatingCodeEnableForMediaState5()
+#define DispatchConvertFramePositionToBinaryMsfForMediaState5(address, value) ObserveConvertFramePositionToBinaryMsfForMediaState5((address), (value))
+#define DispatchBinaryByteToPackedBcdForMediaState5(value) ObserveBinaryByteToPackedBcdForMediaState5(value)
+#define DispatchResetControllerCommand0EForDiscControl() ObserveResetControllerCommand0EForDiscControl()
+#define DispatchIndexedDriveStateForDiscControl(state) ObserveIndexedDriveStateForDiscControl(state)
+#define DispatchReadDriveConfigurationForDiscControl(destination, offset, count) ObserveReadDriveConfigurationForDiscControl((destination), (offset), (count))
+#define SelectAndConfigureOperatingCodeForThresholdBody SelectAndConfigureOperatingCodeForThresholdForTest
+
+static void SetMediaState5UpdateRequestBitsAtomic(void)
+{
+    FirmwareWriteBit003B(1u);
+    FirmwareWriteBit0039(1u);
+    FirmwareWriteBit003A(1u);
+    FirmwareWriteBit0036(1u);
+}
+#else
+extern void AdvanceOperatingUpdateStageAtFrameBoundaries(void);
+extern void UpdateMeasurementPositionSnapshotState(void);
+extern void FUN_RAM_fb96fd(void);
+extern void ServiceControllerOperatingThresholdSamplingCycle(void);
+extern void RecomputeMediaState5ControllerThreshold(void);
+extern void UpdateSecondaryControllerOperatingProfile(void);
+extern void PLEXTOR_NEAR_FUNCTION SetMediaState5LeadOutTransitionBitsAtomic(void);
+extern u8 PLEXTOR_NEAR_FUNCTION ReadBit0044ForReadAcquisitionTarget(void);
+extern void WriteControllerParametersEAEBFromScaledValue(u16 value);
+extern void WriteControllerParametersD4AndE2ForCode(u8 selector_code);
+extern void WriteControllerParametersE8E9ForValue(u8 value);
+extern void PLEXTOR_NEAR_FUNCTION SetCurrentOperatingCodeWithHighCodeTransitionFloor(u8 requested_operating_code);
+extern u8 PLEXTOR_NEAR_FUNCTION ReadBit0033Atomic(void);
+extern void WriteControllerParameterEF00AndConditionalD0Value(u8 value);
+extern void UpdateControllerOperatingCodeEnableState(void);
+extern void ConvertFramePositionToBinaryMsfTuple(s32 frame_position, fw_addr_t output_tuple_address);
+extern u8 BinaryByteToPackedBcd(u8 value);
+extern void PLEXTOR_NEAR_FUNCTION ResetControllerCommand0EMeasurementCaptureState(void);
+extern u8 IsIndexedDriveStateActive(u8 state_code);
+extern void ReadDriveConfigurationBytes(fw_addr_t offset, fw_addr_t destination, u16 count);
+
+#define DispatchAdvanceOperatingUpdateStageAtFrameBoundaries() AdvanceOperatingUpdateStageAtFrameBoundaries()
+#define DispatchUpdateMeasurementPositionSnapshotState() UpdateMeasurementPositionSnapshotState()
+#define DispatchUpdateWriteSpeedFlagsAfterPositionCount() FUN_RAM_fb96fd()
+#define DispatchServiceControllerOperatingThresholdSamplingCycle() ServiceControllerOperatingThresholdSamplingCycle()
+#define DispatchRecomputeMediaState5ControllerThreshold() RecomputeMediaState5ControllerThreshold()
+#define DispatchApplyControllerRegisterProfile(coordinate, operating_code) ApplyControllerRegisterProfile((coordinate), (operating_code))
+#define DispatchUpdateSecondaryControllerOperatingProfile() UpdateSecondaryControllerOperatingProfile()
+#define SetMediaState5UpdateRequestBitsAtomic() SetMediaState5LeadOutTransitionBitsAtomic()
+#define DispatchReadBit0044ForReadAcquisitionTarget() ReadBit0044ForReadAcquisitionTarget()
+#define DispatchWriteControllerParametersEAEB(value) WriteControllerParametersEAEBFromScaledValue(value)
+#define DispatchWriteControllerParametersD4E2(code) WriteControllerParametersD4AndE2ForCode(code)
+#define DispatchWriteControllerParametersE8E9(value) WriteControllerParametersE8E9ForValue(value)
+#define DispatchSetCurrentOperatingCodeWithHighCodeTransitionFloor(value) SetCurrentOperatingCodeWithHighCodeTransitionFloor(value)
+#define DispatchConfigureControllerForOperatingCodeThreshold(value) ConfigureControllerForCurrentOperatingCodeAndThresholdValue(value)
+#define DispatchReadBit0033ForMediaState5Position() ReadBit0033Atomic()
+#define DispatchWriteControllerParameterEF00ForMediaState5(value) WriteControllerParameterEF00AndConditionalD0Value(value)
+#define DispatchUpdateControllerOperatingCodeEnableForMediaState5() UpdateControllerOperatingCodeEnableState()
+#define DispatchConvertFramePositionToBinaryMsfForMediaState5(address, value) ConvertFramePositionToBinaryMsfTuple((value), (address))
+#define DispatchBinaryByteToPackedBcdForMediaState5(value) BinaryByteToPackedBcd(value)
+#define DispatchResetControllerCommand0EForDiscControl() ResetControllerCommand0EMeasurementCaptureState()
+#define DispatchIndexedDriveStateForDiscControl(state) IsIndexedDriveStateActive(state)
+#define DispatchReadDriveConfigurationForDiscControl(destination, offset, count) ReadDriveConfigurationBytes((fw_addr_t)(offset), (destination), (count))
+#define SelectAndConfigureOperatingCodeForThresholdBody SelectAndConfigureOperatingCodeForThreshold
+#endif
+#endif

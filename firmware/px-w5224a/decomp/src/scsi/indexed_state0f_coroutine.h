@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SCSI_INDEXED_STATE0F_COROUTINE_H
+#define PLEXTOR_SCSI_INDEXED_STATE0F_COROUTINE_H
+
+void RunIndexedState0FOperationCoroutine0(void);
+
+#endif

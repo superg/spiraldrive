@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language_definitions>
+  <language processor="80251-fixed"
+            endian="big"
+            size="16"
+            variant="default"
+            version="1.3"
+            slafile="80251_fixed.sla"
+            processorspec="80251_fixed.pspec"
+            id="80251-fixed:BE:24:default">
+    <description>80251 Microcontroller Family (fixed 16-bit displacements)</description>
+    <compiler name="default" spec="80251_fixed.cspec" id="default"/>
+  </language>
+</language_definitions>

@@ -1,0 +1,35 @@
+#include "platform/firmware_map.h"
+
+/* Host/target substitutions for the corresponding firmware unit.
+ * Intentionally included more than once with PLEXTOR_BINDING_SECTION. */
+
+#if PLEXTOR_BINDING_SECTION == 1
+#if defined(PLEXTOR_HOST_TEST)
+extern u8 ObserveAcquireDiscReadPositionForLeadInReference(void);
+extern void ObserveResetDriveControlStateForLeadInReference(void);
+extern u8 ObserveInitializeControllerOperatingStateForLeadInReference(void);
+extern void ObserveSetControllerOperatingEnableForLeadInReference(u8 enabled);
+extern u8 ObserveCheckControllerMeasurementToleranceForLeadInReference(u8 restart_timeout);
+extern void ObserveConfigureControllerPortsForLeadInReference(u8 ramp_word0255);
+extern void ObserveApplyOperatingCodeForLeadInReference(void);
+extern u8 ObserveCaptureMediaState6LeadInOffsetForReference(void);
+
+#define AcquireDiscReadPosition ObserveAcquireDiscReadPositionForLeadInReference
+#define ResetDriveControlStateToEight ObserveResetDriveControlStateForLeadInReference
+#define InitializeControllerOperatingStateAndRunCalibration ObserveInitializeControllerOperatingStateForLeadInReference
+#define SetControllerOperatingEnableState ObserveSetControllerOperatingEnableForLeadInReference
+#define CheckControllerMeasurementToleranceOrTimeout ObserveCheckControllerMeasurementToleranceForLeadInReference
+#define ConfigureControllerPortsAndParametersForCurrentOperatingCode ObserveConfigureControllerPortsForLeadInReference
+#define ApplyOperatingCodeAndFixedControllerChannels0Through2 ObserveApplyOperatingCodeForLeadInReference
+#define CaptureMediaState6LeadInMeasurementOffset ObserveCaptureMediaState6LeadInOffsetForReference
+#else
+extern u8 AcquireDiscReadPosition(void);
+extern void ResetDriveControlStateToEight(void);
+extern u8 InitializeControllerOperatingStateAndRunCalibration(void);
+extern void SetControllerOperatingEnableState(u8 enabled);
+extern u8 CheckControllerMeasurementToleranceOrTimeout(u8 restart_timeout);
+extern void ConfigureControllerPortsAndParametersForCurrentOperatingCode(u8 ramp_word0255);
+extern void ApplyOperatingCodeAndFixedControllerChannels0Through2(void);
+extern u8 PLEXTOR_NEAR_FUNCTION CaptureMediaState6LeadInMeasurementOffset(void);
+#endif
+#endif

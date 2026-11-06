@@ -9,6 +9,8 @@ Build from the repository root (Rust edition 2024):
 cargo build --release --locked --manifest-path tools/fwpatch-plextor/Cargo.toml
 ```
 
+In VS Code, use **Terminal → Run Build Task** (`Ctrl+Shift+B`).
+
 GitHub Actions checks formatting, Clippy, and tests on pushes to `main` and pull
 requests. Push a tag matching the Cargo version, such as `fwpatch-plextor-v0.1.0`,
 to publish Windows and Linux x86/x64 and macOS Intel/Apple Silicon ZIP archives.

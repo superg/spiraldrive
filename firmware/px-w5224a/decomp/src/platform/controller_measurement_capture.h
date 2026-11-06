@@ -1,0 +1,11 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_CAPTURE_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_CAPTURE_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION CaptureControllerD8D9MiddleFourSumsForIndex(u8 series_index);
+void AdvanceControllerD8D9MeasurementSeries(void);
+void PLEXTOR_NEAR_FUNCTION CaptureControllerD8D9NormalizedDifferenceSample(void);
+u16 PLEXTOR_NEAR_FUNCTION SelectMeasurementDurationFromOperatingCode(void);
+
+#endif

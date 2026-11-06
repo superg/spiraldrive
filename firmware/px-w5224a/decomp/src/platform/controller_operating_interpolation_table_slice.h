@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_CONTROLLER_OPERATING_INTERPOLATION_TABLE_SLICE_H
+#define PLEXTOR_CONTROLLER_OPERATING_INTERPOLATION_TABLE_SLICE_H
+
+#include "mcs251.h"
+
+
+void PLEXTOR_NEAR_FUNCTION BuildControllerOperatingInterpolationTableSlice(void);
+
+#endif

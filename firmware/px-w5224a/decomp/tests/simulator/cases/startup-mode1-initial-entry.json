@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "mode1-handshake-yield-to-initial-startup",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xf84c30",
+      "reconstructed_nonreturn_checkpoint_symbol": "RunStartupSequenceCoroutine1",
+      "instruction_limit": 5000000,
+      "origin": "Synthetic post-init mode1 startup. Real scheduler, C0 initialization and first handshake yield; C1 initial entry reached before idle1 write. No function stubs/code patches. Initial RAM1214 countdown released by timed write. Controller018043 ready bit supplied. Not a cold hardware boot.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [
+        {
+          "address": "0x89",
+          "value": 16
+        }
+      ],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "drive_state",
+            "address": "0x1300",
+            "length": 2
+          },
+          {
+            "name": "coroutine_spx",
+            "address": "0x1162",
+            "length": 4
+          },
+          {
+            "name": "host_packet",
+            "address": "0x0c32",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x018043",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x11ed",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ee",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ef",
+          "bytes": [
+            8
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x0180a9",
+          "bytes": [
+            96
+          ]
+        },
+        {
+          "address": "0x1300",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x0c79",
+          "bytes": [
+            1
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 100,
+      "require_expected_stop": true,
+      "launch_via_jump": true,
+      "timed_writes": [
+        {
+          "after_states": 100,
+          "space": "RAM",
+          "address": "0x001214",
+          "value": 0
+        }
+      ],
+      "code_pointer_memory": [],
+      "stock_hardware_reads": [],
+      "reconstructed_hardware_reads": [],
+      "ignored_memory": [
+        {
+          "address": "0x300",
+          "length": 1792,
+          "reason": "C0-C3 stack frames contain compiler-specific addresses/registers; actual C1 entry and saved C1 SPX are compared."
+        },
+        {
+          "address": "0x115e",
+          "length": 4,
+          "reason": "Saved C0 SPX differs with native two-byte and rebuilt four-byte call frames: stock0310, rebuilt0316 on this first handshake yield. Both reach initial C1 entry with c32 zero. Other state remains compared."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "host_packet": [
+            0
+          ],
+          "drive_state": [
+            0,
+            0
+          ],
+          "coroutine_spx": [
+            0,
+            0,
+            5,
+            7
+          ]
+        }
+      },
+      "hardware_trace_capacity": 1023
+    }
+  ]
+}

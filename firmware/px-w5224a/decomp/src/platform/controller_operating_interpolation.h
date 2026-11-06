@@ -1,0 +1,16 @@
+#ifndef PLEXTOR_CONTROLLER_OPERATING_INTERPOLATION_H
+#define PLEXTOR_CONTROLLER_OPERATING_INTERPOLATION_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION ApplyControllerOperatingInterpolationAtIndex(u8 profile_index);
+u16 LookupControllerOperatingAdjustmentForCurrentPosition(void);
+u16 LookupControllerOperatingAdjustmentByFrameBucket(s32 frame_position);
+void PLEXTOR_NEAR_FUNCTION ComputeControllerOperatingProfileAdjustment(void);
+void PLEXTOR_NEAR_FUNCTION WriteScaledOperatingProfileWordViaSfr8B8D(u8 scale);
+void PLEXTOR_NEAR_FUNCTION ApplyControllerOperatingProfileAfterResponse(void);
+u8 PLEXTOR_NEAR_FUNCTION SelectControllerProfileForOperatingCode(u8 radial_coordinate);
+void UpdateSecondaryControllerOperatingProfile(void);
+void UpdateMediaState5ControllerProfileForCurrentPosition(void);
+
+#endif

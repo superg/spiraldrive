@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_DRIVE_OPERATION_RESULT_COROUTINE_H
+#define PLEXTOR_DRIVE_OPERATION_RESULT_COROUTINE_H
+
+void RunDriveOperationResultCoroutine0(void);
+
+#endif

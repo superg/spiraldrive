@@ -1,0 +1,5 @@
+@define MCS251 ""
+@define OMIT_RETADDR 1
+
+@include "8051_main.sinc"
+@include "80251_fixed.sinc"

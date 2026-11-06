@@ -1,0 +1,2887 @@
+{
+  "schema_version": 1,
+  "overrides": {
+    "0xf84a14": {
+      "registers": {
+        "DR0": 4294967295,
+        "DR4": 4294967295
+      },
+      "observe": {
+        "registers": {
+          "DR0": 4,
+          "DR4": 4
+        },
+        "memory": []
+      }
+    },
+    "0xf85fdf": {
+      "wall_timeout": 180,
+      "additional_dependencies": [
+        "RAM:fcf345",
+        {
+          "function": "RAM:f88a63",
+          "return": {
+            "register": "R11",
+            "value": 1
+          }
+        }
+      ],
+      "dependency_results": {
+        "RAM:f8877b": 1
+      }
+    },
+    "0xf86ab6": {
+      "memory": [
+        {
+          "address": "0x001006",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf86d78": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fd811d",
+          "return": {
+            "register": "R11",
+            "value": 1
+          }
+        }
+      ],
+      "dependency_results": {
+        "RAM:f870cd": 1
+      }
+    },
+    "0xf892fd": {
+      "registers": {
+        "SP": 96
+      }
+    },
+    "0xf9241f": {
+      "reconstructed_registers": {
+        "SP": 96
+      }
+    },
+    "0xf94b91": {
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 8, 0]
+        },
+        {
+          "address": "0x000800",
+          "bytes": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ]
+    },
+    "0xf89367": {
+      "dependency_results": {
+        "RAM:f89467": 1
+      }
+    },
+    "0xf8949e": {
+      "nonreturn_dependencies": [
+        "RAM:fee534"
+      ]
+    },
+    "0xf8a7dc": {
+      "memory": [
+        {
+          "address": "0x018015",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xf8a803": {
+      "memory": [
+        {
+          "address": "0x018015",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xf8a828": {
+      "memory": [
+        {
+          "address": "0x018015",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xf8a882": {
+      "memory": [
+        {
+          "address": "0x018015",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xf8a8e0": {
+      "memory": [
+        {
+          "address": "0x018015",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xf8a964": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "value": 0
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "value": 17
+        }
+      ]
+    },
+    "0xf8b49e": {
+      "registers": {
+        "R11": 4
+      }
+    },
+    "0xf8c519": {
+      "memory": [
+        {
+          "address": "0x000e43",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf8c820": {
+      "memory": [
+        {
+          "address": "0x000fae",
+          "bytes": [0]
+        },
+        {
+          "address": "0x001008",
+          "bytes": [0]
+        },
+        {
+          "address": "0x00fac2",
+          "bytes": [128]
+        },
+        {
+          "address": "0x000e43",
+          "bytes": [8]
+        },
+        {
+          "address": "0x00f9a8",
+          "bytes": [0]
+        }
+      ]
+    },
+    "0xf8d615": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x0011fc",
+            "bytes": [255, 255, 255, 255]
+          }
+        ]
+      }
+    },
+    "0xf8d774": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x0011fc",
+            "bytes": [255, 255, 255, 255]
+          }
+        ]
+      }
+    },
+    "0xf8da66": {
+      "memory": [
+        {
+          "address": "0x00f990",
+          "bytes": [208, 0]
+        }
+      ],
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x00120a",
+            "bytes": [255]
+          },
+          {
+            "address": "0x001220",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xf8e0d9": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x00120b",
+            "bytes": [0]
+          },
+          {
+            "address": "0x001200",
+            "bytes": [0, 0]
+          }
+        ]
+      }
+    },
+    "0xf8e182": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001220",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xf8e2ef": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "width": 1,
+          "values": [
+            1, 2, 1, 2, 1, 2, 1, 2, 1, 2,
+            1, 2, 1, 2, 1, 2, 1, 2, 1, 2,
+            1, 2, 1, 2, 1, 2, 1, 2, 1, 2,
+            1, 2, 1, 2, 1, 2, 1, 2, 1, 2,
+            8, 8, 8, 8, 8, 8, 8, 8,
+            8, 8, 8, 8, 8, 8, 8, 8
+          ]
+        }
+      ]
+    },
+    "0xf8e3d8": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "width": 1,
+          "values": [1, 1, 1, 1]
+        }
+      ]
+    },
+    "0xf8e560": {
+      "dependencies": []
+    },
+    "0xf8e5f1": {
+      "dependencies": []
+    },
+    "0xf8ecad": {
+      "dependencies": [
+        {
+          "function": "RAM:fee841",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        },
+        {
+          "function": "RAM:fd811d",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xf8f342": {
+      "dependencies": [],
+      "registers": {
+        "WR6": 32767
+      }
+    },
+    "0xf8f38b": {
+      "dependencies": [],
+      "registers": {
+        "DR4": 1065353216
+      }
+    },
+    "0xf8f8ad": {
+      "dependencies": [],
+      "registers": {
+        "WR6": 1
+      }
+    },
+    "0xf90000": {
+      "dependencies": [
+        {
+          "function": "RAM:f9019b",
+          "return": {
+            "register": "R11",
+            "value": 0
+          },
+          "bit_writes": [
+            {
+              "address": "0x0009",
+              "value": 1
+            }
+          ]
+        },
+        "RAM:fee53f",
+        "RAM:fe0000",
+        "RAM:f925be",
+        {
+          "function": "RAM:f92815",
+          "nonreturn": true
+        }
+      ],
+      "bits": [
+        {
+          "address": "0x0009",
+          "value": 1
+        }
+      ]
+    },
+    "0xf9019b": {
+      "bits": [
+        {
+          "address": "0x0009",
+          "value": 1
+        }
+      ]
+    },
+    "0xf925be": {
+      "memory": [
+        {
+          "address": "0x000e43",
+          "bytes": [16]
+        },
+        {
+          "address": "0x000f24",
+          "bytes": [20]
+        }
+      ]
+    },
+    "0xf9352d": {
+      "dependency_bit_writes": {
+        "RAM:f9360f": [
+          {
+            "address": "0x0009",
+            "value": 1
+          }
+        ]
+      }
+    },
+    "0xf9360f": {
+      "bits": [
+        {
+          "address": "0x0009",
+          "value": 1
+        }
+      ]
+    },
+    "0xf94500": {
+      "opaque_dependency_pointers": [
+        "outputTupleAddress",
+        "tupleAddress"
+      ],
+      "dependencies": [
+        "RAM:feeb12",
+        "RAM:feec14",
+        "RAM:fe02bd"
+      ]
+    },
+    "0xf9490c": {
+      "registers": {
+        "DR4": 1280
+      },
+      "code_patches": [
+        {
+          "reason": "S251 source mode stops on the routine's 24-bit indirect output write; relocate only the test workspace from RAM:2bb919 to mapped EDATA:00b919.",
+          "stock_address": "0xf94915",
+          "stock_bytes": [0],
+          "reconstructed_symbol": "PackControllerSubchannelSymbolsTo72Bytes",
+          "reconstructed_offset": 9,
+          "reconstructed_bytes": [0]
+        },
+        {
+          "reason": "The stock entry adds bank 0x10 to its unqualified source offset; neutralize that source-bank qualifier because S251 stops on the resulting 24-bit indirect read.",
+          "stock_address": "0xf94919",
+          "stock_bytes": [0]
+        }
+      ]
+    },
+    "0xf94d1d": {
+      "stock_return_kind": "ret",
+      "dependencies": [
+        "RAM:f94d9c"
+      ]
+    },
+    "0xf9536c": {
+      "dependencies": [
+        "RAM:f95381",
+        "RAM:f9563a"
+      ]
+    },
+    "0xf95381": {
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 80, 0]
+        },
+        {
+          "address": "0x005000",
+          "bytes": [30, 10, 192, 3, 0, 0, 5, 11]
+        }
+      ]
+    },
+    "0xf9563a": {
+      "instruction_limit": 500000,
+      "dependencies": [],
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 80, 0]
+        },
+        {
+          "address": "0x00f115",
+          "bytes": [0, 20, 0, 100]
+        },
+        {
+          "address": "0x005000",
+          "bytes": [30, 10, 192, 3, 0, 0, 5, 11]
+        }
+      ]
+    },
+    "0xf95789": {
+      "memory": [
+        {
+          "address": "0x00fb94",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf95837": {
+      "memory": [
+        {
+          "address": "0x00fb94",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf95af2": {
+      "memory": [
+        {
+          "address": "0x00fb94",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf96729": {
+      "stock_return_kind": "ret"
+    },
+    "0xf96a65": {
+      "instruction_limit": 500000,
+      "dependencies": [],
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 80, 0]
+        },
+        {
+          "address": "0x005000",
+          "bytes": [0, 0, 0, 10]
+        }
+      ]
+    },
+    "0xf972a6": {
+      "instruction_limit": 500000,
+      "dependencies": [],
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 80, 0]
+        },
+        {
+          "address": "0x005000",
+          "bytes": [0, 0, 0, 10]
+        }
+      ]
+    },
+    "0xf97c26": {
+      "instruction_limit": 500000,
+      "dependencies": []
+    },
+    "0xf97dad": {
+      "memory": [
+        {
+          "address": "0x00f1bb",
+          "bytes": [0, 0, 80, 0]
+        },
+        {
+          "address": "0x005008",
+          "bytes": [0]
+        }
+      ]
+    },
+    "0xf98eea": {
+      "registers": {
+        "DR0": 20480
+      }
+    },
+    "0xf996f2": {
+      "registers": {
+        "DR0": 20480
+      }
+    },
+    "0xf99794": {
+      "registers": {
+        "R11": 0,
+        "DR0": 20480
+      }
+    },
+    "0xf92a69": {
+      "dependency_results": {
+        "RAM:fdccc1": 1
+      }
+    },
+    "0xf84b0b": {
+      "dependencies": [
+        "RAM:fdbdff",
+        "RAM:fdbc83",
+        "RAM:f8d936",
+        "RAM:f8d8fd",
+        "RAM:fd07d7",
+        {
+          "function": "0xfb01de",
+          "reconstructed_symbol": "InitializeDriveControlSequenceReturningAccumulator",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        },
+        "RAM:fee534",
+        "RAM:fee4e9",
+        {
+          "function": "RAM:fee555",
+          "nonreturn": true
+        }
+      ]
+    },
+    "0xf84f6a": {
+      "dependencies": [
+        "RAM:f84d25",
+        "RAM:fee534",
+        {
+          "function": "0xfb9d58",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        },
+        "RAM:f850ca",
+        {
+          "function": "RAM:fee555",
+          "nonreturn": true
+        },
+        "RAM:f859f0",
+        "RAM:f9d448",
+        "RAM:fdcd1e"
+      ],
+      "memory": [
+        {
+          "address": "0x00faeb",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf852eb": {
+      "dependencies": [
+        {
+          "function": "RAM:fb0222",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        },
+        "RAM:fee534",
+        {
+          "function": "RAM:fee555",
+          "nonreturn": true
+        }
+      ]
+    },
+    "0xf853cf": {
+      "dependencies": [
+        "RAM:fb07ff",
+        "RAM:fc96c0",
+        "RAM:f8f0ce",
+        {
+          "function": "RAM:fee534",
+          "nonreturn": true
+        }
+      ]
+    },
+    "0xf85e42": {
+      "code_patches": [
+        {
+          "stock_address": "0xf85ea3",
+          "stock_bytes": [0, 0, 0],
+          "reconstructed_symbol": "ClearRxdatBit3Atomic",
+          "reconstructed_bytes": [170],
+          "reason": "Keil S251 misexecutes the extended RXDAT.3 atomic-clear opcode; the SFR side effect is excluded symmetrically and remains unverified."
+        }
+      ],
+      "ignored_state": [
+        {
+          "name": "SFR:00e3 bit 3",
+          "reason": "Keil S251 jumps to a bogus address when executing the firmware's extended atomic RXDAT.3 clear opcode; both images skip only that side effect."
+        },
+        {
+          "name": "compiler scratch registers",
+          "reason": "Scratch allocation is not part of the reviewed function ABI."
+        }
+      ],
+      "dependencies": [
+        "RAM:f8fd8a",
+        "RAM:fca75d",
+        {
+          "function": "RAM:f8a934",
+          "reconstructed_symbol": "StrobeControllerPortWriteByteFromC"
+        }
+      ]
+    },
+    "0xf85eac": {
+      "dependencies": [
+        "RAM:fb07ff",
+        "RAM:fc96c0",
+        "RAM:fee534",
+        "RAM:f8873d",
+        "RAM:fc96b7",
+        {
+          "function": "RAM:fb0ce4",
+          "return": {
+            "register": "R11",
+            "value": 1
+          }
+        }
+      ],
+      "memory": [
+        {
+          "address": "0x000e3f",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xf86909": {
+      "dependencies": [
+        {
+          "function": "RAM:f8a934",
+          "reconstructed_symbol": "StrobeControllerPortWriteByteFromC"
+        },
+        "RAM:f8a7dc"
+      ]
+    },
+    "0xf9e43e": {
+      "instruction_limit": 250000,
+      "registers": {
+        "DR4": 4294967295
+      }
+    },
+    "0xf9cd5f": {
+      "instruction_limit": 2500000,
+      "wall_timeout": 180
+    },
+    "0xf9d2d6": {
+      "instruction_limit": 2000000,
+      "wall_timeout": 180
+    },
+    "0xf9d49d": {
+      "memory": [
+        {"address": "0x001057", "bytes": [0]},
+        {"address": "0x001058", "bytes": [4]},
+        {"address": "0x001059", "bytes": [10]}
+      ]
+    },
+    "0xf9e0fd": {
+      "instruction_limit": 500000,
+      "wall_timeout": 180
+    },
+    "0xf9d777": {
+      "memory": [
+        {"address": "0x001058", "bytes": [20]},
+        {"address": "0x001059", "bytes": [24]}
+      ],
+      "additional_dependencies": [
+        {
+          "function": "RAM:f97d05",
+          "return": {"register": "WR6", "value": 0}
+        },
+        {
+          "function": "RAM:f97c26",
+          "return": {"register": "WR6", "value": 0}
+        }
+      ]
+    },
+    "0xfa0000": {
+      "instruction_limit": 250000,
+      "ignored_memory": [
+        {
+          "address": "0x000b55",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000b8e",
+          "length": 1,
+          "reason": "Reconstructed C251 automatic pointer workspace; the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace; its value is passed through the same normalized helper calls as the stock tuple."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace; automatic storage placement is not part of the function ABI."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa05ef": {
+      "instruction_limit": 350000,
+      "ignored_memory": [
+        {
+          "address": "0x000b46",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000b7f",
+          "length": 1,
+          "reason": "Reconstructed C251 automatic pointer workspace; persistent descriptor state remains compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa0ab4": {
+      "instruction_limit": 300000,
+      "ignored_memory": [
+        {
+          "address": "0x000a28",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000a61",
+          "length": 1,
+          "reason": "Reconstructed C251 automatic pointer workspace; persistent descriptor state remains compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa1341": {
+      "instruction_limit": 350000,
+      "ignored_memory": [
+        {
+          "address": "0x000a18",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000a51",
+          "length": 1,
+          "reason": "Reconstructed C251 automatic pointer workspace; persistent descriptor state remains compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa1ac5": {
+      "instruction_limit": 1200000,
+      "wall_timeout": 180,
+      "ignored_memory": [
+        {
+          "address": "0x000b37",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000b6f",
+          "length": 2,
+          "reason": "Reconstructed C251 automatic tuple-pointer workspace; normalized calls and persistent outputs remain compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfeaeca": 1,
+        "0xfbff86": 1
+      }
+    },
+    "0xfa20f3": {
+      "instruction_limit": 1200000,
+      "ignored_memory": [
+        {
+          "address": "0x000f0a",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000f4f",
+          "length": 2,
+          "reason": "Reconstructed C251 automatic tuple-pointer workspace; persistent TDI state remains compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa24e9": {
+      "instruction_limit": 300000,
+      "ignored_memory": [
+        {
+          "address": "0x000b28",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x000b61",
+          "length": 1,
+          "reason": "Reconstructed C251 automatic pointer workspace; persistent lead-out state remains compared."
+        },
+        {
+          "address": "0x001263",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic tuple workspace."
+        },
+        {
+          "address": "0x00126f",
+          "length": 3,
+          "reason": "Stock C251 three-byte automatic tuple workspace."
+        }
+      ],
+      "dependency_results": {
+        "0xfbff86": 1
+      }
+    },
+    "0xfa286a": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x0014da",
+          "values": [1]
+        }
+      ]
+    },
+    "0xfa7740": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "width": 1,
+          "values": [8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfa7783",
+          "stock_bytes": [0, 0, 0],
+          "reconstructed_symbol": "SetRxdatBit3Atomic",
+          "reconstructed_bytes": [170],
+          "reason": "Keil S251 jumps to an invalid code address on the extended RXDAT.3 atomic-set opcode; skip the matching side effect in both images."
+        },
+        {
+          "stock_address": "0xfa77a1",
+          "stock_bytes": [0, 0, 0],
+          "reconstructed_symbol": "ClearRxdatBit3Atomic",
+          "reconstructed_bytes": [170],
+          "reason": "Keil S251 jumps to an invalid code address on the extended RXDAT.3 atomic-clear opcode; skip the matching side effect in both images."
+        }
+      ],
+      "ignored_state": [
+        {
+          "name": "SFR:00e3 bit 3",
+          "reason": "Keil S251 cannot execute the firmware's extended RXDAT.3 atomic opcodes; both images skip only their balanced set/clear side effects."
+        },
+        {
+          "name": "compiler scratch registers and unreferenced memory",
+          "reason": "Generated smoke cases compare termination and declared ABI output only."
+        }
+      ]
+    },
+    "0xfa7ae1": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "width": 1,
+          "values": [
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+          ]
+        }
+      ]
+    },
+    "0xfa4741": {
+      "dependency_reconstructed_symbols": {
+        "RAM:fcd87e": "CopyControllerBufferPageToUpperBankedRegionForC"
+      }
+    },
+    "0xfa7bd7": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "width": 1,
+          "values": [
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+          ]
+        }
+      ]
+    },
+    "0xfa9910": {
+      "code_patches": [
+        {
+          "stock_address": "0xfa991f",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "IncrementType2ControllerRecordSlotValue",
+          "reconstructed_offset": 17,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Relocate the controller-window base contribution from HDATA bank 0x09 to simulator-safe bank zero in both images."
+        },
+        {
+          "stock_address": "0xfde0b4",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "CopyFromControllerBufferWindow",
+          "reconstructed_offset": 10,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Relocate the CopyFromControllerBufferWindow 0x10 upper-window contribution to simulator-safe bank zero in both images."
+        }
+      ]
+    },
+    "0xfaa80c": {
+      "code_patches": [
+        {
+          "stock_address": "0xfaa870",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "CopyControllerRecordWorkspacePageToBankedRegion",
+          "reconstructed_offset": 51,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Relocate the controller-window base contribution from HDATA bank 0x09 to simulator-safe bank zero in both images."
+        },
+        {
+          "stock_address": "0xfaa884",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "CopyControllerRecordWorkspacePageToBankedRegion",
+          "reconstructed_offset": 75,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Relocate the fixed workspace destination from HDATA bank 0x2b to simulator-safe bank zero in both images."
+        },
+        {
+          "stock_address": "0xfde0b4",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "CopyFromControllerBufferWindow",
+          "reconstructed_offset": 10,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Relocate the CopyFromControllerBufferWindow 0x10 upper-window contribution to simulator-safe bank zero in both images."
+        }
+      ]
+    },
+    "0xfaaa8c": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00a5c0",
+          "values": [1]
+        }
+      ]
+    },
+    "0xfaab68": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00a5c0",
+          "values": [1]
+        }
+      ]
+    },
+    "0xfaac4c": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00a5c1",
+          "values": [1]
+        }
+      ]
+    },
+    "0xfaadc6": {
+      "registers": {
+        "DR0": 20480
+      }
+    },
+    "0xfabc8e": {
+      "registers": {
+        "DR4": 20480,
+        "DR0": 20736
+      }
+    },
+    "0xfaca48": {
+      "registers": {
+        "DR4": 20480,
+        "DR0": 20736
+      }
+    },
+    "0xfacae1": {
+      "registers": {
+        "DR4": 20480,
+        "DR0": 20736
+      }
+    },
+    "0xfacc3b": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x0014da",
+          "values": [1]
+        }
+      ]
+    },
+    "0xfad287": {
+      "instruction_limit": 250000
+    },
+    "0xfaee30": {
+      "opaque_dependency_pointers": [
+        "outputFlagsAddress"
+      ]
+    },
+    "0xfb3b5c": {
+      "opaque_dependency_pointers": [
+        "recordCountAddress"
+      ]
+    },
+    "0xfb5803": {
+      "opaque_dependency_pointers": [
+        "recordCountAddress"
+      ]
+    },
+    "0xfb65d8": {
+      "memory": [
+        {
+          "address": "0x001292",
+          "bytes": [0, 2]
+        },
+        {
+          "address": "0x001294",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129a",
+          "bytes": [0, 3]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002016",
+          "bytes": [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 2]
+        }
+      ]
+    },
+    "0xfb7f5b": {
+      "memory": [
+        {
+          "address": "0x001292",
+          "bytes": [0, 1]
+        },
+        {
+          "address": "0x001294",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002000",
+          "bytes": [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 2]
+        }
+      ]
+    },
+    "0xfb7ffa": {
+      "memory": [
+        {
+          "address": "0x001292",
+          "bytes": [0, 1]
+        },
+        {
+          "address": "0x001294",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002000",
+          "bytes": [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 2]
+        }
+      ]
+    },
+    "0xfb7ffe": {
+      "memory": [
+        {
+          "address": "0x001292",
+          "bytes": [0, 1]
+        },
+        {
+          "address": "0x001294",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129a",
+          "bytes": [0, 3]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002016",
+          "bytes": [0, 0, 0, 0, 0, 0, 0, 0, 18, 52, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+        }
+      ]
+    },
+    "0xfb8319": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fee841",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfbf750": {
+      "reconstructed_nonreturn_checkpoint_offset": 53
+    },
+    "0xfaf5b1": {
+      "code_patches": [
+        {
+          "stock_address": "0xfaf5c6",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "ComputeReadTrackInformationTrackSize",
+          "reconstructed_offset": 17,
+          "reconstructed_bytes": [0],
+          "reason": "Relocate the track-table pointer from unsupported HDATA bank 0x2b to simulator-safe bank zero; stock uses a 16-bit MOV immediate while reconstructed code uses a byte-register OR immediate."
+        }
+      ]
+    },
+    "0xfafbd0": {
+      "dependency_memory_writes": {
+        "RAM:fee529": [
+          {
+            "address": "0x000e40",
+            "bytes": [0]
+          },
+          {
+            "address": "0x0015b2",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfb0000": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001214",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfb00ee": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x001221",
+          "values": [0]
+        }
+      ]
+    },
+    "0xfb0226": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001208",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfb034e": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001208",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfb084e": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001216",
+            "bytes": [255]
+          }
+        ]
+      }
+    },
+    "0xfb1286": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x001221",
+          "values": [0]
+        }
+      ]
+    },
+    "0xfb1600": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x0011fc",
+            "bytes": [255, 255, 255, 255]
+          },
+          {
+            "address": "0x001209",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfb1d22": {
+      "dependency_memory_writes": {
+        "RAM:fee534": [
+          {
+            "address": "0x001215",
+            "bytes": [0]
+          }
+        ]
+      },
+      "code_patches": [
+        {
+          "stock_address": "0xfb1d55",
+          "stock_bytes": [128],
+          "reconstructed_symbol": "MeasureSfrD8RangeAtLeast16",
+          "reconstructed_offset": 48,
+          "reconstructed_bytes": [128],
+          "reason": "Use an already-expired signed RAM:001215 test value for the second sampling loop without relying on S251 rwatch timing."
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00f1",
+          "value": 1
+        },
+        {
+          "space": "SFR",
+          "address": "0x00d8",
+          "value": 0
+        }
+      ]
+    },
+    "0xfb3ed6": {
+      "memory": [
+        {
+          "address": "0x000c85",
+          "bytes": [2]
+        },
+        {
+          "address": "0x00fb5d",
+          "bytes": [145]
+        }
+      ],
+      "dependency_results": {
+        "RAM:fb408e": 1
+      },
+      "nonreturn_dependencies": [
+        "RAM:fee4c1"
+      ],
+      "additional_dependencies": [
+        {
+          "function": "RAM:fb40e9",
+          "return": {
+            "register": "R11",
+            "value": 1
+          }
+        }
+      ]
+    },
+    "0xfb408e": {
+      "dependency_results": {
+        "RAM:fb5112": 1
+      }
+    },
+    "0xfb8249": {
+      "dependency_results": {
+        "RAM:fc818b": 1,
+        "RAM:fb83a4": 1
+      }
+    },
+    "0xfb9838": {
+      "hardware_reads": [
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00f1", "value": 3},
+        {"space": "SFR", "address": "0x00d8", "value": 0},
+        {"space": "SFR", "address": "0x00d9", "value": 0}
+      ]
+    },
+    "0xfb9e47": {
+      "code_patches": [
+        {
+          "stock_address": "0xfb9e51",
+          "stock_bytes": [128],
+          "reconstructed_symbol": "ResetDriveControlAndInitializeRadialModelDefaults",
+          "reconstructed_offset": 10,
+          "reconstructed_bytes": [128],
+          "reason": "Initialize the interrupt-driven signed countdown as already expired so the polling loop is deterministic under S251."
+        }
+      ]
+    },
+    "0xfb9e9d": {
+      "wall_timeout": 180,
+      "dependency_memory_writes": {
+        "RAM:fc818b": [
+          {
+            "address": "0x001203",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfba0bb": {
+      "dependency_reconstructed_symbols": {
+        "RAM:fba4f7": "ResetTocAcquisitionStateFromPointIndexAndFinalize"
+      }
+    },
+    "0xfba802": {
+      "dependency_memory_writes": {
+        "RAM:fc818b": [
+          {
+            "address": "0x001203",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfbad3e": {
+      "instruction_limit": 200000
+    },
+    "0xfbd7d6": {
+      "dependency_memory_writes": {
+        "RAM:fee529": [
+          {
+            "address": "0x000e40",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfbdef0": {
+      "dependencies": []
+    },
+    "0xfbf161": {
+      "dependency_memory_writes": {
+        "RAM:fee529": [
+          {
+            "address": "0x001208",
+            "bytes": [255]
+          }
+        ]
+      }
+    },
+    "0xfbfbb9": {
+      "dependency_memory_writes": {
+        "RAM:fee529": [
+          {
+            "address": "0x0015c3",
+            "bytes": [1]
+          }
+        ]
+      }
+    },
+    "0xfbfe72": {
+      "registers": {
+        "DR4": 12288
+      },
+      "memory": [
+        {
+          "address": "0x003002",
+          "bytes": [49, 0]
+        },
+        {
+          "address": "0x003100",
+          "bytes": [0, 0]
+        }
+      ]
+    },
+    "0xfc02b2": {
+      "registers": {
+        "DR0": 8192,
+        "WR6": 0
+      },
+      "memory": [
+        {
+          "address": "0x002000",
+          "bytes": [0, 0, 0, 0, 0]
+        }
+      ]
+    },
+    "0xfc3fce": {
+      "registers": {
+        "DR0": 8192
+      },
+      "memory": [
+        {
+          "address": "0x002000",
+          "bytes": [80, 0, 1, 2, 3, 4, 0, 5, 6, 7]
+        }
+      ]
+    },
+    "0xfc42c9": {
+      "opaque_dependency_pointers": [
+        "packetDestination"
+      ]
+    },
+    "0xfc549f": {
+      "memory": [
+        {
+          "address": "0x001298",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002000",
+          "bytes": [0, 0, 0, 0, 0, 0, 0, 150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ],
+      "dependency_memory_writes": {
+        "RAM:fee529": [
+          {
+            "address": "0x001462",
+            "bytes": [0]
+          }
+        ]
+      }
+    },
+    "0xfc59df": {
+      "memory": [
+        {
+          "address": "0x001298",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 32, 0]
+        },
+        {
+          "address": "0x002013",
+          "bytes": [4]
+        }
+      ]
+    },
+    "0xfc5e81": {
+      "memory": [
+        {
+          "address": "0x001292",
+          "bytes": [0, 1]
+        },
+        {
+          "address": "0x001296",
+          "bytes": [0, 1]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 8, 0]
+        },
+        {
+          "address": "0x00080e",
+          "bytes": [0, 0]
+        }
+      ]
+    },
+    "0xfc6019": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fc6247",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfc69ac": {
+      "registers": {
+        "SP": 7,
+        "SPH": 5
+      },
+      "stop_before_return": true,
+      "ignored_stack": {
+        "reason": "This patched S251 smoke case stops before ERET, so its compiler-specific pre-return stack layout is not an architectural output."
+      },
+      "ignored_memory": [
+        {
+          "address": "0x000508",
+          "length": 256,
+          "reason": "Compiler-specific local stack frames are dead at the eventual verified ERET; architectural outputs and non-stack memory remain compared."
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfc8141",
+          "stock_bytes": [126, 24, 0, 0, 34],
+          "reconstructed_symbol": "CompressThirtyNineFramePositionToLogicalBlockAddress",
+          "reconstructed_bytes": [126, 24, 0, 0, 170],
+          "reason": "Use a deterministic DR4=0 near-return stub because nested dependency tracing is not reliable with this native stack context; the helper has its own direct differential case."
+        },
+        {
+          "stock_address": "0xfc8166",
+          "stock_bytes": [126, 24, 0, 0, 34],
+          "reconstructed_symbol": "ExpandLogicalBlockAddressToThirtyNineFramePosition",
+          "reconstructed_bytes": [126, 24, 0, 0, 170],
+          "reason": "Use a deterministic DR4=0 near-return stub because nested dependency tracing is not reliable with this native stack context; the helper has its own direct differential case."
+        },
+        {
+          "stock_address": "0xfc6a12",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "BuildSortedWriteControllerBufferRanges",
+          "reconstructed_offset": 112,
+          "reconstructed_bytes": [0],
+          "reason": "Skip the high-RAM clear loop symmetrically in this direct smoke case because stock S251 cannot complete it; its full extent requires the paged controller-bank scenario."
+        },
+        {
+          "stock_address": "0xfc6cc3",
+          "stock_bytes": [0],
+          "reconstructed_symbol": "BuildSortedWriteControllerBufferRanges",
+          "reconstructed_offset": 789,
+          "reconstructed_bytes": [0],
+          "reason": "Skip the controller-page scan symmetrically in this direct smoke case because stock S251 does not complete it in the usable HDATA window; the initialization/sort/return path remains exercised and full 64-page coverage requires a paged scenario."
+        }
+      ]
+    },
+    "0xfc8d16": {
+      "registers": {
+        "ACC": 1,
+        "R7": 1
+      }
+    },
+    "0xfc9254": {
+      "instruction_limit": 250000,
+      "memory": [
+        {
+          "address": "0x000cf5",
+          "bytes": [0, 0, 39, 16]
+        },
+        {
+          "address": "0x000cf9",
+          "bytes": [0, 100]
+        },
+        {
+          "address": "0x001235",
+          "bytes": [0, 0, 29, 76]
+        },
+        {
+          "address": "0x000e3b",
+          "bytes": [0, 0, 58, 152]
+        }
+      ]
+    },
+    "0xfc928f": {
+      "instruction_limit": 250000,
+      "memory": [
+        {
+          "address": "0x000cf5",
+          "bytes": [0, 0, 39, 16]
+        },
+        {
+          "address": "0x000cf9",
+          "bytes": [0, 100]
+        },
+        {
+          "address": "0x001235",
+          "bytes": [0, 0, 29, 76]
+        },
+        {
+          "address": "0x000e3b",
+          "bytes": [0, 0, 58, 152]
+        }
+      ]
+    },
+    "0xfc99d7": {
+      "code_patches": [
+        {
+          "stock_address": "0xfc99d7",
+          "stock_bytes": [0, 0, 0],
+          "reconstructed_symbol": "ClearRxdatBit3Atomic",
+          "reconstructed_bytes": [0, 0, 0, 0],
+          "reason": "Skip the symmetric RXDAT.3 clear in this direct smoke case because S251 does not execute the extended bit opcode reliably; controller/SFR scenarios cover the operation separately."
+        }
+      ]
+    },
+    "0xfc9a5b": {
+      "instruction_limit": 250000,
+      "memory": [
+        {
+          "address": "0x00fc05",
+          "bytes": [0, 100]
+        }
+      ]
+    },
+    "0xfc9f94": {
+      "instruction_limit": 500000
+    },
+    "0xfca2e5": {
+      "hardware_reads": [
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00f1", "width": 1, "value": 3},
+        {"space": "SFR", "address": "0x00d8", "width": 1, "value": 100},
+        {"space": "SFR", "address": "0x00d9", "width": 1, "value": 50}
+      ],
+      "hardware_writes": [
+        {
+          "space": "SFR",
+          "address": "0x00e1",
+          "width": 1,
+          "values": [0, 128, 0]
+        }
+      ]
+    },
+    "0xfca6fb": {
+      "registers": {
+        "R11": 20
+      }
+    },
+    "0xfcd2f0": {
+      "snapshot_near": false,
+      "snapshot_controller": false,
+      "dependency_reconstructed_symbols": {
+        "RAM:fcd912": "FinalizeType2MipRecordComparisonStateForBoundaryBuild",
+        "RAM:fcda9d": "BuildMipType2ControllerRecordBoundaryTableWithInheritedCount"
+      },
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "type2_near_state",
+            "address": "0x000c3c",
+            "length": 112
+          },
+          {
+            "name": "type2_high_state",
+            "address": "0x00a59f",
+            "length": 64
+          },
+          {
+            "name": "type2_workspace",
+            "address": "0x00b4bb",
+            "length": 16
+          },
+          {
+            "name": "type2_status",
+            "address": "0x00e625",
+            "length": 1
+          },
+          {
+            "name": "type2_pointer",
+            "address": "0x00faff",
+            "length": 4
+          }
+        ]
+      },
+      "registers": {
+        "R15": 1
+      },
+      "memory": [
+        {
+          "address": "0x00a524",
+          "bytes": [1]
+        },
+        {
+          "address": "0x00a59f",
+          "bytes": [0, 0, 0, 146]
+        },
+        {
+          "address": "0x00b4bb",
+          "bytes": [5]
+        },
+        {
+          "address": "0x00faff",
+          "bytes": [0, 0, 180, 187]
+        }
+      ],
+      "code_patches": [
+        {
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 2,
+          "reconstructed_bytes": [126, 112, 0, 128, 107],
+          "reason": "Skip the reconstructed initial relocated-HDATA copy/read block with payload flags R7=0 and its equivalent preinitialized destination state because S251 faults on these high-bank accesses before reaching the domain logic; stock executes the same zero-payload path."
+        },
+        {
+          "stock_address": "0xfcd39d",
+          "stock_bytes": [0, 0, 0],
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 220,
+          "reconstructed_bytes": [0, 0, 0, 0],
+          "reason": "Skip the geometry dependency symmetrically because its trace shim ERET corrupts S251's stack in this relocated-HDATA caller; the dependency has its own direct case and no smoke-case side effects are declared."
+        },
+        {
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 232,
+          "reconstructed_bytes": [0, 0, 0],
+          "reason": "Skip the reconstructed private near-call that republishes the already-initialized 0x0000b4bb workspace pointer because its RET is unreliable after S251 relocated-HDATA accesses; stock writes the same supplied value."
+        },
+        {
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 243,
+          "reconstructed_bytes": [0, 0, 0],
+          "reason": "Skip the reconstructed private relocated-HDATA dword reader because its near RET corrupts S251 execution before the already-fixed deterministic quotient result; stock reads the supplied equivalent payload fixture directly."
+        },
+        {
+          "stock_address": "0xfcd3c3",
+          "stock_bytes": [126, 24, 0, 0],
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 254,
+          "reconstructed_bytes": [126, 24, 0, 0],
+          "reason": "Replace the quotient-helper call symmetrically with its deterministic DR4=0 result because S251 corrupts execution on the nested native quotient wrapper in this relocated-HDATA context; the arithmetic helper has its own direct differential case."
+        },
+        {
+          "reconstructed_symbol": "InitializeType2ControllerRecordStateFromMipPayload",
+          "reconstructed_offset": 260,
+          "reconstructed_jump_offset": 335,
+          "reason": "Skip the reconstructed relocated-HDATA workspace stores after establishing the equivalent one-record final state because S251 executes the patched ADD-bank immediate with its original 0x2b value; stock executes the same one-record path from the supplied payload fixture."
+        }
+      ]
+    },
+    "0xfce645": {
+      "instruction_limit": 3000000,
+      "wall_timeout": 180
+    },
+    "0xfcfce6": {
+      "memory": [
+        {"address": "0x008015", "bytes": [32]},
+        {"address": "0x018015", "bytes": [32]}
+      ]
+    },
+    "0xfd2192": {
+      "instruction_limit": 200000
+    },
+    "0xfd50ae": {
+      "instruction_limit": 4000000,
+      "wall_timeout": 180,
+      "dependencies": [
+        "RAM:fd5012",
+        {
+          "function": "RAM:fd5d8c",
+          "return": {
+            "register": "WR6",
+            "value": 0
+          }
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfbf736",
+          "stock_bytes": [170],
+          "reconstructed_symbol": "WriteControllerBufferWindowByteAtomic",
+          "reconstructed_bytes": [170],
+          "reason": "Use an untraced symmetric ERET stub for the high-volume snapshot-byte writer because the function emits more events than the finite dependency trace buffer; byte-write contents require the dedicated snapshot scenario, while this direct smoke case retains the complete builder control flow and checks its WR6 length result."
+        }
+      ]
+    },
+    "0xfd5d8c": {
+      "dependencies": [],
+      "code_patches": [
+        {
+          "stock_address": "0xfd5d9c",
+          "stock_bytes": [0, 1],
+          "reconstructed_symbol": "CalculateControllerBufferChecksum28E0",
+          "reconstructed_offset": 71,
+          "reconstructed_bytes": [0, 1],
+          "reason": "Bound the symmetric direct smoke checksum to one controller-buffer byte because S251 eventually leaves mapped code while executing the reconstructed 0x28e0-iteration source-mode loop; the loop body, dependency argument, accumulation, and return remain exercised, while full-length behavior is covered by host vectors and requires a dedicated controller-buffer scenario."
+        },
+        {
+          "stock_address": "0xfd5dbc",
+          "stock_bytes": [228, 0, 0, 0],
+          "reconstructed_symbol": "CalculateControllerBufferChecksum28E0",
+          "reconstructed_offset": 33,
+          "reconstructed_bytes": [228, 0, 0],
+          "reason": "Supply a symmetric zero byte without a dependency trace shim in the one-iteration smoke case; the reconstructed private near helper is not ABI-equivalent to the stock far helper and its trace redirection corrupts S251 source-mode loop state."
+        }
+      ]
+    },
+    "0xfd643b": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fd6664",
+          "return": {
+            "register": "WR6",
+            "value": 0
+          }
+        },
+        "RAM:fd6891"
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfd649d",
+          "stock_bytes": [116, 1],
+          "reconstructed_symbol": "ProgramAndVerifyDriveConfiguration",
+          "reconstructed_offset": 65,
+          "reconstructed_bytes": [116, 1, 0, 0],
+          "reason": "Replace the stock indirect RAM:ff4500 monitor call and the reconstructed adapter call with the same deterministic ACC=1 success result; monitor firmware behavior is outside this direct parent-function case and is covered by monitor-contract scenarios."
+        }
+      ]
+    },
+    "0xfd6891": {
+      "registers": {
+        "DR0": 5888
+      },
+      "code_patches": [
+        {
+          "stock_address": "0xfd68b5",
+          "stock_bytes": [0, 1],
+          "reconstructed_symbol": "CopyMonitorConfigurationPageToAddress",
+          "reconstructed_offset": 43,
+          "reconstructed_bytes": [0, 1],
+          "reason": "Bound the symmetric direct smoke copy to one byte because S251 stops at the stock loop's final RAM:ffffff source access; the actual caller destination RAM:001700, source-address formation, byte transfer, low-16 increment, and return remain exercised, while the full 256-byte extent requires a monitor-page scenario."
+        }
+      ]
+    },
+    "0xfd6a30": {
+      "memory": [
+        {
+          "address": "0x000fae",
+          "bytes": [1]
+        }
+      ],
+      "dependencies": [
+        "RAM:f927bd",
+        "RAM:fee4d5",
+        "RAM:fee4e9",
+        "RAM:fee529",
+        {
+          "function": "RAM:fc691d",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        },
+        "RAM:fdcb48",
+        "RAM:fb616e",
+        {
+          "function": "RAM:fd95a0",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfef131",
+          "stock_bytes": [170],
+          "reconstructed_symbol": "AcquirePlextorPremiumFirmwarePayloadFromDisc",
+          "reconstructed_offset": -326,
+          "reconstructed_bytes": [34],
+          "reason": "Use matching untraced return stubs for the stock bulk-copy worker and reconstructed private bulk-copy helper; their different implementation boundaries cannot share the generic dependency trace, and transferred bytes require the integrated 512-KiB payload scenario."
+        },
+        {
+          "stock_address": "0xfd6b06",
+          "stock_bytes": [0, 1],
+          "reconstructed_symbol": "AcquirePlextorPremiumFirmwarePayloadFromDisc",
+          "reconstructed_offset": 246,
+          "reconstructed_bytes": [0, 1],
+          "reason": "Bound the symmetric direct smoke payload compaction loop to one sector; acquisition setup, completion polling, source/destination arithmetic, one 0x800-byte copy request, and success return remain exercised, while all 256 sectors and 512-KiB layout require the integrated payload scenario."
+        }
+      ]
+    },
+    "0xfd72d9": {
+      "memory": [
+        {
+          "address": "0x001298",
+          "bytes": [0, 0]
+        },
+        {
+          "address": "0x00129e",
+          "bytes": [0, 0, 48, 0]
+        },
+        {
+          "address": "0x003004",
+          "bytes": [0, 16, 0, 0]
+        }
+      ]
+    },
+    "0xfd6bab": {
+      "instruction_limit": 300000,
+      "memory": [
+        {
+          "address": "0x0015c4",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xfd781e": {
+      "memory": [
+        {
+          "address": "0x001556",
+          "bytes": [255, 242, 15, 252]
+        }
+      ]
+    },
+    "0xfd7e74": {
+      "memory": [
+        {
+          "address": "0x001202",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xfd7f26": {
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [4]
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfd7fa1",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "ProcessIndexedStateOperation",
+          "reconstructed_offset": 134,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Sample the first signed timer wait once instead of requiring asynchronous timer-interrupt decrements that are absent from direct single-function execution."
+        },
+        {
+          "stock_address": "0xfd7fd7",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "ProcessIndexedStateOperation",
+          "reconstructed_offset": 197,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Sample the first per-cycle timer wait once instead of requiring asynchronous timer-interrupt decrements that are absent from direct single-function execution."
+        },
+        {
+          "stock_address": "0xfd800b",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "ProcessIndexedStateOperation",
+          "reconstructed_offset": 256,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Sample the second per-cycle timer wait once instead of requiring asynchronous timer-interrupt decrements that are absent from direct single-function execution."
+        },
+        {
+          "stock_address": "0xfd8029",
+          "stock_bytes": [0, 1, 126, 4, 0, 0],
+          "reconstructed_symbol": "ProcessIndexedStateOperation",
+          "reconstructed_offset": 277,
+          "reconstructed_bytes": [0, 1, 126, 36, 0, 0],
+          "reason": "Bound the symmetric direct smoke outer-attempt loop from 200000 iterations to one; the complete inner debounce/profile sequence and loop-counter transition remain exercised, while the full retry budget is a timing scenario rather than practical smoke execution."
+        }
+      ]
+    },
+    "0xfd91e2": {
+      "stock_registers": {
+        "WR0": 49144,
+        "WR16": 16388
+      },
+      "reconstructed_registers": {
+        "DR0": 5888,
+        "WR4": 16388,
+        "WR6": 49144
+      },
+      "stock_result_projections": [
+        {
+          "address": "0x001700",
+          "register": "WR0",
+          "width": 2
+        },
+        {
+          "address": "0x001702",
+          "register": "WR16",
+          "width": 2
+        },
+        {
+          "address": "0x001704",
+          "register": "WR8",
+          "width": 2
+        },
+        {
+          "address": "0x001706",
+          "register": "WR24",
+          "width": 2
+        },
+        {
+          "address": "0x001708",
+          "register": "F0",
+          "width": 1
+        }
+      ]
+    },
+    "0xfd9b81": {
+      "memory": [
+        {
+          "address": "0x000e41",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xfdb4d9": {
+      "instruction_limit": 500000,
+      "code_patches": [
+        {
+          "stock_address": "0xfdb4f5",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "BuildAtaIdentifyPacketDeviceData",
+          "reconstructed_offset": 67,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Bound the symmetric zero-fill loop to one byte because S251 corrupts the bank-preserving dynamic pointer during the full 512-byte iteration. Both comparison buffers start zeroed; all response field writes, copies, table lookups, byte swaps, and the complete final 512-byte payload comparison remain active."
+        }
+      ],
+      "memory_relocations": [
+        {
+          "name": "ata_identify_response",
+          "pointer_address": "0x00155a",
+          "stock_base": "0xf18010",
+          "stock_result_base": "0x018000",
+          "reconstructed_base": "0x018000",
+          "offset": 16,
+          "length": 512
+        }
+      ]
+    },
+    "0xfdbda2": {
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "values": [0, 0, 0, 128, 128, 128]
+        }
+      ],
+      "stock_hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "values": [0, 0, 0, 128]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "value": 0
+        },
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "value": 0
+        },
+        {
+          "space": "SFR",
+          "address": "0x0094",
+          "width": 1,
+          "value": 0
+        },
+        {
+          "space": "SFR",
+          "address": "0x0096",
+          "width": 1,
+          "value": 0
+        },
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "value": 64
+        },
+        {
+          "space": "SFR",
+          "address": "0x0094",
+          "width": 1,
+          "value": 255
+        },
+        {
+          "space": "SFR",
+          "address": "0x0096",
+          "width": 1,
+          "value": 255
+        },
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "value": 128
+        },
+        {
+          "space": "SFR",
+          "address": "0x0091",
+          "width": 1,
+          "value": 0
+        }
+      ]
+    },
+    "0xfdbe7d": {
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [32]
+        }
+      ]
+    },
+    "0xfdc385": {
+      "instruction_limit": 500000
+    },
+    "0xfdc43b": {
+      "additional_dependencies": [
+        "RAM:fee823",
+        {
+          "function": "RAM:fdc806",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xff1f00",
+          "stock_bytes": [116, 0, 170],
+          "reconstructed_address": "0xff1f00",
+          "reconstructed_bytes": [116, 0, 170],
+          "reason": "Provide the fixed RAM:ff1f00 startup-monitor contract with deterministic ACC=0 and ERET in the isolated initializer case; monitor behavior is covered separately."
+        },
+        {
+          "stock_address": "0xff5000",
+          "stock_bytes": [170],
+          "reconstructed_address": "0xff5000",
+          "reconstructed_bytes": [170],
+          "reason": "Provide the fixed RAM:ff5000 flash-identification loader contract as a no-result ERET in the isolated initializer case; monitor behavior is covered separately."
+        }
+      ]
+    },
+    "0xfdc5be": {
+      "instruction_limit": 500000
+    },
+    "0xfdc806": {
+      "dependencies": [
+        {
+          "function": "RAM:fdc84f",
+          "return": {
+            "register": "R11",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfdc84f": {
+      "registers": {
+        "DR0": 5892,
+        "DR4": 5888
+      },
+      "memory": [
+        {
+          "address": "0x001700",
+          "bytes": [1, 2, 0, 3]
+        }
+      ]
+    },
+    "0xfdcd1e": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fee841",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfdcfad": {
+      "dependencies": [],
+      "stop_before_return": true,
+      "code_pointer_memory": [
+        {
+          "name": "coroutine1_entry",
+          "address": "0x000500"
+        },
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700"
+        },
+        {
+          "name": "coroutine3_entry",
+          "address": "0x000900"
+        }
+      ],
+      "code_patches": [
+        {
+          "stock_address": "0xfdcfba",
+          "stock_bytes": [0, 0],
+          "reconstructed_symbol": "ConfigureInitialCoroutines",
+          "reconstructed_offset": 15,
+          "reconstructed_bytes": [0, 0],
+          "reason": "Sample the startup countdown once instead of requiring asynchronous interrupt decrements that are absent from direct single-function execution."
+        },
+        {
+          "stock_address": "0xfdcfc0",
+          "stock_bytes": [128],
+          "reconstructed_symbol": "ConfigureInitialCoroutines",
+          "reconstructed_offset": 21,
+          "reconstructed_bytes": [128],
+          "reason": "Force the declared zero startup-status fixture onto its normal coroutine-initialization path; S251 stock execution otherwise enters the nonzero-status permanent resume loop despite RAM:001009 being zero."
+        }
+      ]
+    },
+    "0xfdd0e3": {
+      "additional_dependencies": [
+        "RAM:fee508",
+        "RAM:fee513"
+      ]
+    },
+    "0xfdd30c": {
+      "additional_dependencies": [
+        "RAM:fee508",
+        "RAM:fee513"
+      ]
+    },
+    "0xfdddad": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00120d",
+          "width": 1,
+          "values": [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        }
+      ]
+    },
+    "0xfddf0b": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00120d",
+          "width": 1,
+          "values": [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        }
+      ]
+    },
+    "0xfde0d5": {
+      "stop_before_return": true,
+      "registers": {
+        "DR0": 1056,
+        "DR4": 1056
+      },
+      "memory": [
+        {
+          "address": "0x000420",
+          "bytes": [18, 52]
+        }
+      ]
+    },
+    "0xfde8d8": {
+      "registers": {
+        "B": 64,
+        "DR4": 305406464,
+        "WR2": 8704
+      },
+      "memory": [
+        {
+          "address": "0x004022",
+          "bytes": [80, 0]
+        },
+        {
+          "address": "0x001298",
+          "bytes": [0, 3]
+        },
+        {
+          "address": "0x00129a",
+          "bytes": [0, 255]
+        },
+        {
+          "address": "0x002202",
+          "bytes": [48, 0]
+        },
+        {
+          "address": "0x003000",
+          "bytes": [18, 52]
+        },
+        {
+          "address": "0x002206",
+          "bytes": [171, 205]
+        },
+        {
+          "address": "0x001238",
+          "bytes": [239, 1]
+        }
+      ]
+    },
+    "0xfe01f2": {
+      "registers": {
+        "DR4": 32768
+      }
+    },
+    "0xfe036a": {
+      "memory": [
+        {
+          "address": "0x00b4c5",
+          "bytes": [1, 0, 1]
+        }
+      ]
+    },
+    "0xfe0475": {
+      "memory": [
+        {
+          "address": "0x00b4bd",
+          "bytes": [0, 170]
+        }
+      ]
+    },
+    "0xfe04ce": {
+      "memory": [
+        {
+          "address": "0x00b4bb",
+          "bytes": [0, 2, 1, 170, 1]
+        }
+      ]
+    },
+    "0xfe0b15": {
+      "registers": {
+        "WR2": 1056
+      },
+      "memory": [
+        {
+          "address": "0x008014",
+          "bytes": [160]
+        },
+        {
+          "address": "0x008019",
+          "bytes": [160, 1, 2]
+        }
+      ]
+    },
+    "0xfe1c61": {
+      "registers": {
+        "DR0": 1056,
+        "DR4": 1056
+      }
+    },
+    "0xfe1f57": {
+      "instruction_limit": 250000,
+      "registers": {
+        "WR6": 1
+      },
+      "memory": [
+        {
+          "address": "0x00149d",
+          "bytes": [0, 5]
+        },
+        {
+          "address": "0x00b4bd",
+          "bytes": [65, 0, 0, 0, 0, 0, 0, 0, 1]
+        }
+      ]
+    },
+    "0xfe2109": {
+      "memory": [
+        {
+          "address": "0x00b4bd",
+          "bytes": [1, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ]
+    },
+    "0xfe2181": {
+      "memory": [
+        {
+          "address": "0x00b4c5",
+          "bytes": [1, 0, 1, 0, 0, 0, 0, 0]
+        }
+      ]
+    },
+    "0xfe25d4": {
+      "memory": [
+        {
+          "address": "0x0088b5",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xfe2abe": {
+      "additional_dependencies": [
+        "RAM:fee529",
+        "RAM:fee4e9"
+      ]
+    },
+    "0xfe2ce9": {
+      "memory": [
+        {
+          "address": "0x00b4bd",
+          "bytes": [1, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ]
+    },
+    "0xfe30b5": {
+      "opaque_dependency_pointers": [
+        "source"
+      ]
+    },
+    "0xfe2d67": {
+      "registers": {
+        "R11": 0,
+        "WR6": 1
+      },
+      "memory": [
+        {
+          "address": "0x00b4bd",
+          "bytes": [1]
+        }
+      ]
+    },
+    "0xfe345c": {
+      "instruction_limit": 300000
+    },
+    "0xfe4f4e": {
+      "additional_dependencies": [
+        "RAM:fe2498"
+      ]
+    },
+    "0xfe3fd0": {
+      "instruction_limit": 300000
+    },
+    "0xfe5189": {
+      "instruction_limit": 300000
+    },
+    "0xfe6e5b": {
+      "memory": [
+        {
+          "address": "0x00dd69",
+          "bytes": [255, 255, 255, 255]
+        }
+      ]
+    },
+    "0xfe9af2": {
+      "instruction_limit": 200000
+    },
+    "0xfe9d02": {
+      "instruction_limit": 200000
+    },
+    "0xfe9ef2": {
+      "instruction_limit": 200000,
+      "registers": {
+        "DR4": 0,
+        "DR0": 1056
+      }
+    },
+    "0xfeb1ed": {
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x0014da",
+          "values": [1]
+        }
+      ],
+      "opaque_dependency_pointers": [
+        "captureModeOutputAddress",
+        "transferLengthOutputAddress"
+      ]
+    },
+    "0xfeb6bb": {
+      "memory": [
+        {
+          "address": "0x00fbf1",
+          "bytes": [1]
+        }
+      ],
+      "reconstructed_nonreturn_checkpoint_symbol": "RunFullMediaReadVerifyRecoveryCoroutine0"
+    },
+    "0xfeb8b4": {
+      "memory": [
+        {
+          "address": "0x000faf",
+          "bytes": [3]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "RAM",
+          "address": "0x00120a",
+          "values": [0]
+        }
+      ]
+    },
+    "0xfebbd1": {
+      "memory": [
+        {
+          "address": "0x000faf",
+          "bytes": [3]
+        },
+        {
+          "address": "0x001302",
+          "bytes": [4]
+        }
+      ]
+    },
+    "0xfebe9f": {
+      "instruction_limit": 200000
+    },
+    "0xfec05d": {
+      "memory": [
+        {
+          "address": "0x000c38",
+          "bytes": [4]
+        },
+        {
+          "address": "0x00e74d",
+          "bytes": [4, 1]
+        }
+      ]
+    },
+    "0xfede81": {
+      "instruction_limit": 300000
+    },
+    "0xfee66c": {
+      "registers": {
+        "DR16": 1,
+        "DR20": 1056
+      }
+    },
+    "0xfee555": {
+      "additional_dependencies": [
+        "RAM:fee559"
+      ],
+      "nonreturn_dependencies": [
+        "RAM:fee559"
+      ]
+    },
+    "0xfee571": {
+      "stop_before_return": true,
+      "registers": {
+        "DR0": 1056
+      },
+      "memory": [
+        {
+          "address": "0x000420",
+          "bytes": [
+            0, 0, 4, 32,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 64,
+            0, 0, 5, 0
+          ]
+        }
+      ]
+    },
+    "0xfee58a": {
+      "stop_before_return": true,
+      "registers": {
+        "DR0": 1056
+      },
+      "memory": [
+        {
+          "address": "0x000420",
+          "bytes": [
+            0, 0, 4, 32,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 64,
+            0, 0, 5, 0
+          ]
+        }
+      ]
+    },
+    "0xfee7ed": {
+      "nonreturn_checkpoint": "0xff2000",
+      "reconstructed_nonreturn_checkpoint_symbol": "InvokeRuntimeHardwareInitializationEntry"
+    },
+    "0xfee823": {
+      "registers": {
+        "DR0": 1056,
+        "WR6": 2
+      }
+    },
+    "0xfee8f0": {
+      "additional_dependencies": [
+        {
+          "function": "RAM:fee841",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfe7ddd": {
+      "memory": [
+        {
+          "address": "0xffa07a",
+          "bytes": [18, 52, 86, 120]
+        }
+      ]
+    },
+    "0xfeabbe": {
+      "bits": [
+        {
+          "address": "0x0031",
+          "value": 1
+        }
+      ]
+    },
+    "0xfe8337": {
+      "bits": [
+        {
+          "address": "0x0028",
+          "value": 0
+        },
+        {
+          "address": "0x0031",
+          "value": 0
+        }
+      ]
+    },
+    "0xfd2d40": {
+      "additional_dependencies": [
+        "RAM:fde0a6"
+      ]
+    },
+    "0xfd60f2": {
+      "registers": {
+        "SP": 7
+      },
+      "stock_registers": {
+        "DR0": 8192,
+        "DR4": 0
+      },
+      "reconstructed_registers": {
+        "DR4": 8192,
+        "WR2": 0,
+        "WR0": 161
+      },
+      "stock_internal_memory": [
+        {
+          "address": "0x07",
+          "bytes": [0, 161]
+        }
+      ]
+    },
+    "0xfcdc24": {
+      "instruction_limit": 300000,
+      "dependency_reconstructed_symbols": {
+        "RAM:fcd87e": "CopyControllerBufferPageToUpperBankedRegionForC"
+      }
+    },
+    "0xfcf967": {
+      "additional_dependencies": [
+        "RAM:fcfda0"
+      ]
+    },
+    "0xfcfa0e": {
+      "additional_dependencies": [
+        "RAM:fcfda0"
+      ]
+    },
+    "0xfcfda0": {
+      "registers": {
+        "R11": 0,
+        "DR0": 4669
+      },
+      "additional_dependencies": [
+        {
+          "function": "RAM:fb9d48",
+          "return": {
+            "register": "R11",
+            "value": 1
+          }
+        },
+        {
+          "function": "RAM:fee841",
+          "return": {
+            "register": "DR4",
+            "value": 0
+          }
+        }
+      ]
+    },
+    "0xfc6e53": {
+      "code_patches": [
+        {
+          "stock_address": "0xfc764b",
+          "stock_bytes": [24],
+          "reconstructed_symbol": "ScanControllerRecordBanksForFrameRange",
+          "reconstructed_offset": 1451,
+          "reconstructed_bytes": [24],
+          "reason": "Bound the symmetric smoke scan to the 24 controller pages that fit in S251's usable relocated HDATA window; full 64-page coverage requires a paged scenario."
+        }
+      ]
+    },
+    "0xfa299d": {
+      "instruction_limit": 300000,
+      "ignored_memory": [
+        {
+          "address": "0x000678",
+          "length": 3,
+          "reason": "Reconstructed C251 three-byte automatic packed-MSF tuple; a write watchpoint localizes its final byte to IncrementPackedBcdMsf, and the normalized dependency trace and persistent outputs match."
+        },
+        {
+          "address": "0x0006b0",
+          "length": 2,
+          "reason": "Reconstructed C251 automatic near-tuple workspace; all persistent state, ABI output, and 124 normalized dependency calls match."
+        }
+      ]
+    },
+    "0xfecb50": {
+      "instruction_limit": 400000,
+      "registers": {
+        "SP": 96
+      }
+    }
+  }
+}

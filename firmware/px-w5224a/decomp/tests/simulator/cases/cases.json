@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "min-u8-value-above-limit",
+      "function": "0xfddd27",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 32,
+      "snapshot_near": false,
+      "snapshot_controller": false,
+      "origin": "Ghidra ABI and exhaustive host MinU8 test",
+      "source_listing": "arithmetic.lst",
+      "evidence": "smoke",
+      "seed": 0,
+      "registers": {"R11": 165, "R7": 60},
+      "observe": {"registers": {"R11": 1}},
+      "memory": [],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "ignored_state": [
+        {"name": "condition flags", "reason": "MinU8 callers consume only the ACC result; flag behavior is not part of its reviewed ABI."},
+        {"name": "scratch registers", "reason": "Compiler scratch allocation is not observable at this function boundary."}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_MODE6_TRANSFORM_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_MODE6_TRANSFORM_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION TransformControllerMeasurementSeries04To05ForMode6(void);
+void PLEXTOR_NEAR_FUNCTION TransformControllerMeasurementSeries04To05AndDerive(u8 mode6);
+
+#endif

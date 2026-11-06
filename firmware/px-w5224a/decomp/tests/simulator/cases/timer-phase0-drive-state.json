@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "timer-phase0-drive10-request0",
+      "function": "0xfd1b3d",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 2000,
+      "origin": "Stock 1.04 RAM:fd1b85 checks RAM:001300; RAM:000c43 seeded independently. Transition body stub marks RAM:001700.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [
+        {
+          "address": "0x90",
+          "value": 0
+        }
+      ],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "direct": [
+          {
+            "name": "transition_called",
+            "space": "EDATA",
+            "address": "0x1700"
+          },
+          {
+            "name": "countdown",
+            "space": "EDATA",
+            "address": "0x1210"
+          },
+          {
+            "name": "flags",
+            "space": "EDATA",
+            "address": "0xfaed"
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x11ed",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x11ee",
+          "bytes": [
+            64
+          ]
+        },
+        {
+          "address": "0xfaed",
+          "bytes": [
+            33
+          ]
+        },
+        {
+          "address": "0xfaef",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x1210",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x120c",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x1300",
+          "bytes": [
+            10
+          ]
+        },
+        {
+          "address": "0xc43",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x1700",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [
+        {
+          "function": "RAM:fd1d1e",
+          "memory_writes": [
+            {
+              "address": "0x1700",
+              "bytes": [
+                1
+              ]
+            }
+          ]
+        }
+      ],
+      "code_patches": [],
+      "expected_observations": {
+        "memory": {
+          "transition_called": 1,
+          "countdown": 1,
+          "flags": 1
+        }
+      }
+    },
+    {
+      "id": "timer-phase0-drive0-request10",
+      "function": "0xfd1b3d",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 2000,
+      "origin": "Stock 1.04 RAM:fd1b85 checks RAM:001300; RAM:000c43 seeded independently. Transition body stub marks RAM:001700.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [
+        {
+          "address": "0x90",
+          "value": 0
+        }
+      ],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "direct": [
+          {
+            "name": "transition_called",
+            "space": "EDATA",
+            "address": "0x1700"
+          },
+          {
+            "name": "countdown",
+            "space": "EDATA",
+            "address": "0x1210"
+          },
+          {
+            "name": "flags",
+            "space": "EDATA",
+            "address": "0xfaed"
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x11ed",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x11ee",
+          "bytes": [
+            64
+          ]
+        },
+        {
+          "address": "0xfaed",
+          "bytes": [
+            33
+          ]
+        },
+        {
+          "address": "0xfaef",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x1210",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x120c",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x1300",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0xc43",
+          "bytes": [
+            10
+          ]
+        },
+        {
+          "address": "0x1700",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [
+        {
+          "function": "RAM:fd1d1e",
+          "memory_writes": [
+            {
+              "address": "0x1700",
+              "bytes": [
+                1
+              ]
+            }
+          ]
+        }
+      ],
+      "code_patches": [],
+      "expected_observations": {
+        "memory": {
+          "transition_called": 0,
+          "countdown": 30,
+          "flags": 3
+        }
+      }
+    }
+  ]
+}

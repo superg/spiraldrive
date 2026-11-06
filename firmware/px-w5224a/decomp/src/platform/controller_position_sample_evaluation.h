@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_POSITION_SAMPLE_EVALUATION_H
+#define PLEXTOR_CONTROLLER_POSITION_SAMPLE_EVALUATION_H
+
+#include "mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION EvaluateControllerPositionSamplesAndUpdateCalibration(s16 interior_reference);
+
+#endif

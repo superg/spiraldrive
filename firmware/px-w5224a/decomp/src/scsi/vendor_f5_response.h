@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SCSI_VENDOR_F5_RESPONSE_H
+#define PLEXTOR_SCSI_VENDOR_F5_RESPONSE_H
+
+void BuildVendorF5Selector09ControllerStateResponse(void);
+
+#endif

@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_READ_ACQUISITION_REQUEST_DISPATCH_H
+#define PLEXTOR_READ_ACQUISITION_REQUEST_DISPATCH_H
+
+void DispatchReadAcquisitionRequestFlags(void);
+
+#endif

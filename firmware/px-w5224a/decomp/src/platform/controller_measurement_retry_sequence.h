@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_RETRY_SEQUENCE_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_RETRY_SEQUENCE_H
+
+void RunMediaState6ControllerMeasurementRetrySequence(void);
+
+#endif

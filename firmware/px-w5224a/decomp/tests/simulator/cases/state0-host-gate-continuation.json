@@ -1,0 +1,539 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "state0-post-stage8-ready",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfb9d58",
+      "reconstructed_nonreturn_checkpoint_symbol": "RunDiscRecognitionAndTocInitialization",
+      "instruction_limit": 5000000,
+      "origin": "Synthetic state0 scheduler and homing continuation. Executes real Timer1 duration worker using simulated Timer1 mode1 (TMOD10). No function stubs/code patches. P1.2/P1.7 asserted; countdown RAM1216 expires on reads and RAM1208 reads60. Controller ready/completion/sample are bounded responses. Not physical cold boot or Timer0 interrupt coverage. Extended through stage8 calibration and host-latch wait. RAM:faeb read sequence is synthetic; this does not execute the host ISR or prove hardware interrupt delivery.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [
+        {
+          "address": "0x89",
+          "value": 16
+        }
+      ],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "drive_state",
+            "address": "0x1300",
+            "length": 2
+          },
+          {
+            "name": "coroutine_spx",
+            "address": "0x1162",
+            "length": 4
+          },
+          {
+            "name": "media_operation",
+            "address": "0x0fae",
+            "length": 1
+          },
+          {
+            "name": "media_countdown",
+            "address": "0x1004",
+            "length": 2
+          },
+          {
+            "name": "host_packet",
+            "address": "0x0c32",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x018043",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x11ed",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ee",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ef",
+          "bytes": [
+            8
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x0180a9",
+          "bytes": [
+            96
+          ]
+        },
+        {
+          "address": "0x1300",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 100,
+      "require_expected_stop": true,
+      "launch_via_jump": true,
+      "timed_writes": [
+        {
+          "after_states": 100,
+          "space": "RAM",
+          "address": "0x001214",
+          "value": 0
+        }
+      ],
+      "code_pointer_memory": [],
+      "stock_hardware_reads": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 160,
+          "min_reads": 1,
+          "max_reads": 600,
+          "watch": "RAM24"
+        },
+        {
+          "space": "RAM",
+          "address": "0x1208",
+          "value": 60,
+          "min_reads": 1,
+          "max_reads": 10
+        },
+        {
+          "space": "SFR",
+          "address": "0xd7",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 250
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180ac",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 40,
+          "watch": "RAM24"
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180a9",
+          "value": 96,
+          "min_reads": 1,
+          "max_reads": 5,
+          "watch": "RAM24"
+        },
+        {
+          "space": "RAM",
+          "address": "0x1216",
+          "value": 255,
+          "min_reads": 1,
+          "max_reads": 20
+        },
+        {
+          "space": "RAM",
+          "address": "0xfaeb",
+          "values": [
+            1
+          ]
+        }
+      ],
+      "reconstructed_hardware_reads": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 160,
+          "min_reads": 1,
+          "max_reads": 600
+        },
+        {
+          "space": "RAM",
+          "address": "0x1208",
+          "value": 60,
+          "min_reads": 1,
+          "max_reads": 10
+        },
+        {
+          "space": "SFR",
+          "address": "0xd7",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 250
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180ac",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 40
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180a9",
+          "value": 96,
+          "min_reads": 1,
+          "max_reads": 5
+        },
+        {
+          "space": "RAM",
+          "address": "0x1216",
+          "value": 255,
+          "min_reads": 1,
+          "max_reads": 20
+        },
+        {
+          "space": "RAM",
+          "address": "0xfaeb",
+          "values": [
+            1
+          ]
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x500",
+          "length": 1280,
+          "reason": "Coroutine stack frames contain compiler-specific return addresses and saved registers; actual continuation checkpoints and saved SPX slots remain checked."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "drive_state": [
+            0,
+            48
+          ],
+          "coroutine_spx": [
+            0,
+            0,
+            5,
+            7
+          ],
+          "media_operation": [
+            3
+          ],
+          "media_countdown": [
+            0,
+            120
+          ],
+          "host_packet": [
+            1
+          ]
+        }
+      },
+      "hardware_trace_capacity": 1023
+    },
+    {
+      "id": "state0-post-stage8-two-yields",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfb9d58",
+      "reconstructed_nonreturn_checkpoint_symbol": "RunDiscRecognitionAndTocInitialization",
+      "instruction_limit": 5000000,
+      "origin": "Synthetic state0 scheduler and homing continuation. Executes real Timer1 duration worker using simulated Timer1 mode1 (TMOD10). No function stubs/code patches. P1.2/P1.7 asserted; countdown RAM1216 expires on reads and RAM1208 reads60. Controller ready/completion/sample are bounded responses. Not physical cold boot or Timer0 interrupt coverage. Extended through stage8 calibration and host-latch wait. RAM:faeb read sequence is synthetic; this does not execute the host ISR or prove hardware interrupt delivery.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [
+        {
+          "address": "0x89",
+          "value": 16
+        }
+      ],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "drive_state",
+            "address": "0x1300",
+            "length": 2
+          },
+          {
+            "name": "coroutine_spx",
+            "address": "0x1162",
+            "length": 4
+          },
+          {
+            "name": "media_operation",
+            "address": "0x0fae",
+            "length": 1
+          },
+          {
+            "name": "media_countdown",
+            "address": "0x1004",
+            "length": 2
+          },
+          {
+            "name": "host_packet",
+            "address": "0x0c32",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x018043",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x11ed",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ee",
+          "bytes": [
+            132
+          ]
+        },
+        {
+          "address": "0x11ef",
+          "bytes": [
+            8
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x0180a9",
+          "bytes": [
+            96
+          ]
+        },
+        {
+          "address": "0x1300",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 100,
+      "require_expected_stop": true,
+      "launch_via_jump": true,
+      "timed_writes": [
+        {
+          "after_states": 100,
+          "space": "RAM",
+          "address": "0x001214",
+          "value": 0
+        }
+      ],
+      "code_pointer_memory": [],
+      "stock_hardware_reads": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 160,
+          "min_reads": 1,
+          "max_reads": 600,
+          "watch": "RAM24"
+        },
+        {
+          "space": "RAM",
+          "address": "0x1208",
+          "value": 60,
+          "min_reads": 1,
+          "max_reads": 10
+        },
+        {
+          "space": "SFR",
+          "address": "0xd7",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 250
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180ac",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 40,
+          "watch": "RAM24"
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180a9",
+          "value": 96,
+          "min_reads": 1,
+          "max_reads": 5,
+          "watch": "RAM24"
+        },
+        {
+          "space": "RAM",
+          "address": "0x1216",
+          "value": 255,
+          "min_reads": 1,
+          "max_reads": 20
+        },
+        {
+          "space": "RAM",
+          "address": "0xfaeb",
+          "values": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "reconstructed_hardware_reads": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 160,
+          "min_reads": 1,
+          "max_reads": 600
+        },
+        {
+          "space": "RAM",
+          "address": "0x1208",
+          "value": 60,
+          "min_reads": 1,
+          "max_reads": 10
+        },
+        {
+          "space": "SFR",
+          "address": "0xd7",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 250
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180ac",
+          "value": 0,
+          "min_reads": 1,
+          "max_reads": 40
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x0180a9",
+          "value": 96,
+          "min_reads": 1,
+          "max_reads": 5
+        },
+        {
+          "space": "RAM",
+          "address": "0x1216",
+          "value": 255,
+          "min_reads": 1,
+          "max_reads": 20
+        },
+        {
+          "space": "RAM",
+          "address": "0xfaeb",
+          "values": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x500",
+          "length": 1280,
+          "reason": "Coroutine stack frames contain compiler-specific return addresses and saved registers; actual continuation checkpoints and saved SPX slots remain checked."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "drive_state": [
+            0,
+            48
+          ],
+          "coroutine_spx": [
+            0,
+            0,
+            5,
+            7
+          ],
+          "media_operation": [
+            3
+          ],
+          "media_countdown": [
+            0,
+            120
+          ],
+          "host_packet": [
+            1
+          ]
+        }
+      },
+      "hardware_trace_capacity": 1023
+    }
+  ]
+}

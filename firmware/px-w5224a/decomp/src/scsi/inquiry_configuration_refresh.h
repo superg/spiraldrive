@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_INQUIRY_CONFIGURATION_REFRESH_H
+#define PLEXTOR_INQUIRY_CONFIGURATION_REFRESH_H
+
+void RefreshInquiryResponseFromDriveConfiguration(void);
+
+#endif

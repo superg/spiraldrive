@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SCSI_VENDOR_F3_MEASUREMENT_RESPONSE_H
+#define PLEXTOR_SCSI_VENDOR_F3_MEASUREMENT_RESPONSE_H
+
+void BuildVendorF3MeasurementResultResponse(void);
+
+#endif

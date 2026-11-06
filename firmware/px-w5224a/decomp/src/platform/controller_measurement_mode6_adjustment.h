@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_MODE6_ADJUSTMENT_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_MODE6_ADJUSTMENT_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION ClassifyAndAdjustControllerMeasurementForMode6(void);
+void PLEXTOR_NEAR_FUNCTION ClassifyAndAdjustControllerMeasurementForMode(u8 required_mode);
+
+#endif

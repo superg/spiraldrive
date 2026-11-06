@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_MIP_CONTROLLER_RECORD_SNAPSHOT_H
+#define PLEXTOR_MIP_CONTROLLER_RECORD_SNAPSHOT_H
+
+void BuildMipControllerRecordSnapshotBlock(void);
+
+#endif

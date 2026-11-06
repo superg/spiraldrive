@@ -1,0 +1,13 @@
+#ifndef PLEXTOR_SCSI_READ_TRACK_INFORMATION_POLL_H
+#define PLEXTOR_SCSI_READ_TRACK_INFORMATION_POLL_H
+
+#include "../platform/mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION PollReadTrackInformationRawDescriptorFlags(void);
+u8 PLEXTOR_NEAR_FUNCTION AcquireReadTrackInformationFlagsFromRawDescriptor(u8 toc_point_index) PLEXTOR_REENTRANT;
+u8 PLEXTOR_NEAR_FUNCTION BuildReadTrackInformationResponseFromFullToc(void);
+u8 PLEXTOR_NEAR_FUNCTION BuildReadTrackInformationResponse(void);
+s32 PLEXTOR_NEAR_FUNCTION SelectReadTrackInformationNextWritableFramePosition(void);
+s32 PLEXTOR_NEAR_FUNCTION ResolveReadTrackInformationTrackStartFrame(void);
+
+#endif

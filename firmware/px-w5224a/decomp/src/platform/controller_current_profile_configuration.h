@@ -1,0 +1,7 @@
+#ifndef PLEXTOR_CONTROLLER_CURRENT_PROFILE_CONFIGURATION_H
+#define PLEXTOR_CONTROLLER_CURRENT_PROFILE_CONFIGURATION_H
+
+
+void ConfigureControllerRegisterProfileForCurrentMediaState(void);
+
+#endif

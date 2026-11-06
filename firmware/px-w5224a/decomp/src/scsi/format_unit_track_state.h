@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_SCSI_FORMAT_UNIT_TRACK_STATE_H
+#define PLEXTOR_SCSI_FORMAT_UNIT_TRACK_STATE_H
+
+#include "platform/mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION UpdateFormatUnitTrackStateAfterSuccessfulPreparation(void);
+void PLEXTOR_NEAR_FUNCTION UpdateFormatUnitTrackStateAfterFailedPreparation(void);
+
+#endif

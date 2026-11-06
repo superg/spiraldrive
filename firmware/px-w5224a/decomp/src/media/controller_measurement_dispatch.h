@@ -1,0 +1,11 @@
+#ifndef PLEXTOR_MEDIA_CONTROLLER_MEASUREMENT_DISPATCH_H
+#define PLEXTOR_MEDIA_CONTROLLER_MEASUREMENT_DISPATCH_H
+
+#include "../platform/mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION EvaluateControllerMeasurementSeriesForCurrentMode(void);
+void PLEXTOR_NEAR_FUNCTION CaptureControllerMeasurementPacketInTargetWindow(void);
+u8 PLEXTOR_NEAR_FUNCTION CaptureControllerMeasurementPacketAtComputedTarget(void);
+u16 ComputeBoundedControllerAdjustmentCode(float measurement_value, u16 reference_word);
+
+#endif

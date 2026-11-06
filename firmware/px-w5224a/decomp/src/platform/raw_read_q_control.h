@@ -1,0 +1,10 @@
+#ifndef PLEXTOR_RAW_READ_Q_CONTROL_H
+#define PLEXTOR_RAW_READ_Q_CONTROL_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION UpdateRawReadQPacketControlAndIdentification(u8 skip_identification_packets, u8 decrement_relative_msf_on_restore);
+u8 PLEXTOR_NEAR_FUNCTION RestoreCurrentQPacketAfterIsrc(u8 decrement_relative_msf);
+u8 PLEXTOR_NEAR_FUNCTION RestoreCurrentQPacketAfterMediaCatalog(u8 decrement_relative_msf);
+
+#endif

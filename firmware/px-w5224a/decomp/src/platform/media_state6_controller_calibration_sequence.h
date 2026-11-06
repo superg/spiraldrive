@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_MEDIA_STATE6_CONTROLLER_CALIBRATION_SEQUENCE_H
+#define PLEXTOR_MEDIA_STATE6_CONTROLLER_CALIBRATION_SEQUENCE_H
+
+#include "mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION ExecuteMediaState6ControllerCalibrationSequence(void);
+
+#endif

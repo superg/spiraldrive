@@ -1,0 +1,109 @@
+#include "platform/firmware_map.h"
+
+/* Host/target substitutions for the corresponding firmware unit.
+ * Intentionally included more than once with PLEXTOR_BINDING_SECTION. */
+
+#if PLEXTOR_BINDING_SECTION == 1
+#if defined(PLEXTOR_HOST_TEST)
+extern void ObserveResetRawReadPipelineBuffersForFormatUnit(void);
+extern void ObserveClearRawReadControllerBufferRegionsForFormatUnit(void);
+extern void ObserveInitializeRawReadSectorControlStateForFormatUnit(void);
+extern void ObserveClearRawReadPipelineStatusStateForFormatUnit(void);
+extern void ObserveInitializeType2ControllerRecordGeometryForFormatUnit(void);
+extern void ObserveBuildType2LeadInTocForFormatUnit(u8 write_full_toc);
+extern u8 ObserveAcquireRequiredControllerRecordRunsForFormatUnit(u8 operation_mode);
+extern void ObserveRecalculateType2ControllerRecordGeometryForFormatUnit(void);
+extern void ObserveBuildActiveControllerRecordBoundaryTableForFormatUnit(void);
+extern void ObserveInitializeControllerRecordBoundaryDefaultsForFormatUnit(void);
+extern u8 ObservePreparePrimaryType2ControllerRecordSlotsForFormatUnit(u8 acquisition_mode);
+extern u8 ObserveAcquireFortyFrameType2ControllerRecordBaseWindowForFormatUnit(void);
+extern u8 ObserveAcquireType2TdiControllerRecordSequenceForFormatUnit(void);
+extern void ObserveBuildAllControllerRecordWorkspaceBankPagesForFormatUnit(void);
+extern void ObserveCompleteScsiCommandWithNoSenseForFormatUnit(void);
+extern void ObservePrepareWritePipelineNormalizeSpeed(void);
+extern void ObservePrepareWritePipelineResetQueue(void);
+extern void ObservePrepareWritePipelineInitializeCoroutine2(fw_addr_t entry_address);
+extern void ObservePrepareWritePipelineYieldCoroutine0(void);
+extern u8 ObservePrepareWritePipelineEnsureOpc(void);
+extern void ObservePrepareWritePipelineResetBuffers(void);
+extern void ObservePrepareWritePipelineClearControllerRegions(void);
+extern void ObservePrepareWritePipelineInitializeSectorControl(void);
+extern void ObservePrepareWritePipelineClearStatus(void);
+extern void ObservePrepareWritePipelineRecalculateGeometry(void);
+extern void ObservePrepareWritePipelineAcquireRecordWindow(void);
+#define RESET_RAW_READ_PIPELINE() ObserveResetRawReadPipelineBuffersForFormatUnit()
+#define CLEAR_RAW_READ_CONTROLLER_REGIONS() ObserveClearRawReadControllerBufferRegionsForFormatUnit()
+#define INITIALIZE_RAW_READ_SECTOR_CONTROL() ObserveInitializeRawReadSectorControlStateForFormatUnit()
+#define CLEAR_RAW_READ_PIPELINE_STATUS() ObserveClearRawReadPipelineStatusStateForFormatUnit()
+#define INITIALIZE_TYPE2_GEOMETRY() ObserveInitializeType2ControllerRecordGeometryForFormatUnit()
+#define BUILD_TYPE2_LEAD_IN_TOC(value) ObserveBuildType2LeadInTocForFormatUnit(value)
+#define ACQUIRE_REQUIRED_RECORD_RUNS(mode) ObserveAcquireRequiredControllerRecordRunsForFormatUnit(mode)
+#define RECALCULATE_TYPE2_GEOMETRY() ObserveRecalculateType2ControllerRecordGeometryForFormatUnit()
+#define BUILD_ACTIVE_RECORD_BOUNDARIES() ObserveBuildActiveControllerRecordBoundaryTableForFormatUnit()
+#define INITIALIZE_RECORD_BOUNDARY_DEFAULTS() ObserveInitializeControllerRecordBoundaryDefaultsForFormatUnit()
+#define PREPARE_PRIMARY_TYPE2_SLOTS(mode) ObservePreparePrimaryType2ControllerRecordSlotsForFormatUnit(mode)
+#define ACQUIRE_FORTY_FRAME_TYPE2_BASE_WINDOW() ObserveAcquireFortyFrameType2ControllerRecordBaseWindowForFormatUnit()
+#define ACQUIRE_TYPE2_TDI_SEQUENCE() ObserveAcquireType2TdiControllerRecordSequenceForFormatUnit()
+#define BUILD_ALL_CONTROLLER_RECORD_PAGES() ObserveBuildAllControllerRecordWorkspaceBankPagesForFormatUnit()
+#define COMPLETE_SCSI_NO_SENSE() ObserveCompleteScsiCommandWithNoSenseForFormatUnit()
+#define PREPARE_WRITE_NORMALIZE_SPEED() ObservePrepareWritePipelineNormalizeSpeed()
+#define PREPARE_WRITE_RESET_QUEUE() ObservePrepareWritePipelineResetQueue()
+#define PREPARE_WRITE_INITIALIZE_COROUTINE2(entry) ObservePrepareWritePipelineInitializeCoroutine2(entry)
+#define PREPARE_WRITE_YIELD_COROUTINE0() ObservePrepareWritePipelineYieldCoroutine0()
+#define PREPARE_WRITE_ENSURE_OPC() ObservePrepareWritePipelineEnsureOpc()
+#define PREPARE_WRITE_RESET_BUFFERS() ObservePrepareWritePipelineResetBuffers()
+#define PREPARE_WRITE_CLEAR_CONTROLLER_REGIONS() ObservePrepareWritePipelineClearControllerRegions()
+#define PREPARE_WRITE_INITIALIZE_SECTOR_CONTROL() ObservePrepareWritePipelineInitializeSectorControl()
+#define PREPARE_WRITE_CLEAR_STATUS() ObservePrepareWritePipelineClearStatus()
+#define PREPARE_WRITE_RECALCULATE_GEOMETRY() ObservePrepareWritePipelineRecalculateGeometry()
+#define PREPARE_WRITE_ACQUIRE_RECORD_WINDOW() ObservePrepareWritePipelineAcquireRecordWindow()
+#else
+extern void ResetRawReadPipelineBuffersAndState(void);
+extern void ClearRawReadControllerBufferRegions(void);
+extern void InitializeRawReadSectorControlState(void);
+extern void ClearRawReadPipelineStatusState(void);
+extern void InitializeType2ControllerRecordGeometry(void);
+extern void BuildType2LeadInTocRecordSequence(u8 write_full_toc);
+extern u8 AcquireRequiredControllerRecordIndexRuns(u8 operation_mode);
+extern void RecalculateType2ControllerRecordGeometryWindow(void);
+extern void BuildActiveControllerRecordBoundaryTable(void);
+extern void NormalizeWriteSpeedForCurrentMedia(void);
+extern void ResetRawReadQueueAndTransferState(void);
+extern void InitializeCoroutine2(fw_addr_t entry_address);
+extern void YieldCoroutine0(void);
+extern u8 EnsureOpcForSelectedWriteSpeed(void);
+extern u8 AcquireType2ControllerRecordWindowSequence(void);
+extern void InitializeControllerRecordBoundaryTableFromDefaults(void);
+extern u8 PreparePrimaryType2ControllerRecordSlots(u8 acquisition_mode);
+extern u8 AcquireFortyFrameType2ControllerRecordBaseWindow(void);
+extern u8 AcquireType2TdiControllerRecordSequence(void);
+extern void BuildAllControllerRecordWorkspaceBankPages(void);
+extern void CompleteScsiCommandWithNoSense(void);
+#define RESET_RAW_READ_PIPELINE() ResetRawReadPipelineBuffersAndState()
+#define CLEAR_RAW_READ_CONTROLLER_REGIONS() ClearRawReadControllerBufferRegions()
+#define INITIALIZE_RAW_READ_SECTOR_CONTROL() InitializeRawReadSectorControlState()
+#define CLEAR_RAW_READ_PIPELINE_STATUS() ClearRawReadPipelineStatusState()
+#define INITIALIZE_TYPE2_GEOMETRY() InitializeType2ControllerRecordGeometry()
+#define BUILD_TYPE2_LEAD_IN_TOC(value) BuildType2LeadInTocRecordSequence(value)
+#define ACQUIRE_REQUIRED_RECORD_RUNS(mode) AcquireRequiredControllerRecordIndexRuns(mode)
+#define RECALCULATE_TYPE2_GEOMETRY() RecalculateType2ControllerRecordGeometryWindow()
+#define BUILD_ACTIVE_RECORD_BOUNDARIES() BuildActiveControllerRecordBoundaryTable()
+#define INITIALIZE_RECORD_BOUNDARY_DEFAULTS() InitializeControllerRecordBoundaryTableFromDefaults()
+#define PREPARE_PRIMARY_TYPE2_SLOTS(mode) PreparePrimaryType2ControllerRecordSlots(mode)
+#define ACQUIRE_FORTY_FRAME_TYPE2_BASE_WINDOW() AcquireFortyFrameType2ControllerRecordBaseWindow()
+#define ACQUIRE_TYPE2_TDI_SEQUENCE() AcquireType2TdiControllerRecordSequence()
+#define BUILD_ALL_CONTROLLER_RECORD_PAGES() BuildAllControllerRecordWorkspaceBankPages()
+#define COMPLETE_SCSI_NO_SENSE() CompleteScsiCommandWithNoSense()
+#define PREPARE_WRITE_NORMALIZE_SPEED() NormalizeWriteSpeedForCurrentMedia()
+#define PREPARE_WRITE_RESET_QUEUE() ResetRawReadQueueAndTransferState()
+#define PREPARE_WRITE_INITIALIZE_COROUTINE2(entry) InitializeCoroutine2(entry)
+#define PREPARE_WRITE_YIELD_COROUTINE0() YieldCoroutine0()
+#define PREPARE_WRITE_ENSURE_OPC() EnsureOpcForSelectedWriteSpeed()
+#define PREPARE_WRITE_RESET_BUFFERS() ResetRawReadPipelineBuffersAndState()
+#define PREPARE_WRITE_CLEAR_CONTROLLER_REGIONS() ClearRawReadControllerBufferRegions()
+#define PREPARE_WRITE_INITIALIZE_SECTOR_CONTROL() InitializeRawReadSectorControlState()
+#define PREPARE_WRITE_CLEAR_STATUS() ClearRawReadPipelineStatusState()
+#define PREPARE_WRITE_RECALCULATE_GEOMETRY() RecalculateType2ControllerRecordGeometryWindow()
+#define PREPARE_WRITE_ACQUIRE_RECORD_WINDOW() AcquireType2ControllerRecordWindowSequence()
+#endif
+#endif

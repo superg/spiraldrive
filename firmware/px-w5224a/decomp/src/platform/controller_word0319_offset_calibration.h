@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_WORD0319_OFFSET_CALIBRATION_H
+#define PLEXTOR_CONTROLLER_WORD0319_OFFSET_CALIBRATION_H
+
+#include "mcs251.h"
+
+u8 CalibrateControllerWord0319Offset(void);
+
+#endif

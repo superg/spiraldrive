@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "controller-reset-ports-e0-code0",
+      "function": "0xf8b58c",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "origin": "Stock 1.04 MOVX/DPX controller bank and fixed ROM table pair audit; called port writer and profile mapper are traced stubs. Distinct ROM bytes reveal byte order and index.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "R11": 0
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ports",
+            "address": "0x018046",
+            "length": 1
+          },
+          {
+            "name": "low_ram",
+            "address": "0x008046",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0e43",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x8046",
+          "bytes": [
+            90
+          ]
+        },
+        {
+          "address": "0x18046",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0xff84fe",
+          "bytes": [
+            161,
+            178,
+            195,
+            212
+          ]
+        },
+        {
+          "address": "0xff850a",
+          "bytes": [
+            229,
+            246,
+            103,
+            137
+          ]
+        }
+      ],
+      "dependencies": [
+        "RAM:f8a7dc",
+        {
+          "function": "RAM:f8b6dc",
+          "returns": [
+            {
+              "register": "R11",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "code_patches": [],
+      "expected_observations": {
+        "memory": {
+          "ports": [
+            0
+          ],
+          "low_ram": [
+            90
+          ]
+        }
+      }
+    },
+    {
+      "id": "controller-reset-ports-e1-code4",
+      "function": "0xf8b58c",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "origin": "Stock 1.04 MOVX/DPX controller bank and fixed ROM table pair audit; called port writer and profile mapper are traced stubs. Distinct ROM bytes reveal byte order and index.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "R11": 1
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ports",
+            "address": "0x018046",
+            "length": 1
+          },
+          {
+            "name": "low_ram",
+            "address": "0x008046",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0e43",
+          "bytes": [
+            4
+          ]
+        },
+        {
+          "address": "0x8046",
+          "bytes": [
+            90
+          ]
+        },
+        {
+          "address": "0x18046",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0xff84fe",
+          "bytes": [
+            161,
+            178,
+            195,
+            212
+          ]
+        },
+        {
+          "address": "0xff850a",
+          "bytes": [
+            229,
+            246,
+            103,
+            137
+          ]
+        }
+      ],
+      "dependencies": [
+        "RAM:f8a7dc",
+        {
+          "function": "RAM:f8b6dc",
+          "returns": [
+            {
+              "register": "R11",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "code_patches": [],
+      "expected_observations": {
+        "memory": {
+          "ports": [
+            148
+          ],
+          "low_ram": [
+            90
+          ]
+        }
+      }
+    },
+    {
+      "id": "controller-reset-ports-e1-code10",
+      "function": "0xf8b58c",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "origin": "Stock 1.04 MOVX/DPX controller bank and fixed ROM table pair audit; called port writer and profile mapper are traced stubs. Distinct ROM bytes reveal byte order and index.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "R11": 1
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ports",
+            "address": "0x018046",
+            "length": 1
+          },
+          {
+            "name": "low_ram",
+            "address": "0x008046",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x0e43",
+          "bytes": [
+            10
+          ]
+        },
+        {
+          "address": "0x8046",
+          "bytes": [
+            90
+          ]
+        },
+        {
+          "address": "0x18046",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0xff84fe",
+          "bytes": [
+            161,
+            178,
+            195,
+            212
+          ]
+        },
+        {
+          "address": "0xff850a",
+          "bytes": [
+            229,
+            246,
+            103,
+            137
+          ]
+        }
+      ],
+      "dependencies": [
+        "RAM:f8a7dc",
+        {
+          "function": "RAM:f8b6dc",
+          "returns": [
+            {
+              "register": "R11",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "code_patches": [],
+      "expected_observations": {
+        "memory": {
+          "ports": [
+            212
+          ],
+          "low_ram": [
+            90
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_MEDIA_READ_TRANSITION_COROUTINE_H
+#define PLEXTOR_MEDIA_READ_TRANSITION_COROUTINE_H
+
+void RunMediaReadTransitionCoroutine1(void);
+
+#endif

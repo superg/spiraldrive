@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_OPERATING_STATE_RESET_H
+#define PLEXTOR_CONTROLLER_OPERATING_STATE_RESET_H
+
+void ResetControllerOperatingState(void);
+
+#endif

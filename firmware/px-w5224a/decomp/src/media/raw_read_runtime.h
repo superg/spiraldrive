@@ -1,0 +1,21 @@
+#ifndef PLEXTOR_RAW_READ_RUNTIME_H
+#define PLEXTOR_RAW_READ_RUNTIME_H
+
+#include "../platform/mcs251.h"
+
+void InitializeRawReadPipelineRuntimeState(void);
+void InitializeMediaReadControlState(void);
+void HandleReadMeasurementTargetPacketMatch(void);
+void PLEXTOR_NEAR_FUNCTION PrepareReadMeasurementForHighDescriptorMode(void);
+u8 RestartReadAcquisitionCoroutineForProducerWait(void);
+u32 AdvanceRawReadRingPosition(u32 main_data_cursor);
+void PLEXTOR_NEAR_FUNCTION LoadControllerBufferSetupFromCurrentRawDescriptor(void);
+void PLEXTOR_NEAR_FUNCTION ResetControllerEventBit7TransferState(void);
+void PLEXTOR_NEAR_FUNCTION ThrottleRawReadProducerForQueueCapacity(void);
+void InitializeMediaReadTrackModelAndPipelineState(void);
+void UpdateRawReadProgressCountersAndPhaseFlags(void);
+u8 PrepareRawReadDescriptorBatchForInspection(void);
+u16 CountValidatedRawReadDescriptorsForHostTransfer(void);
+void PLEXTOR_NEAR_FUNCTION ApplyModePage0ERuntimeImageToRawReadState(void);
+
+#endif

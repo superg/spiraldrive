@@ -1,0 +1,17 @@
+#ifndef PLEXTOR_CONTROLLER_RECORD_BOUNDARIES_H
+#define PLEXTOR_CONTROLLER_RECORD_BOUNDARIES_H
+
+#include "mcs251.h"
+
+void IncrementType2ControllerRecordSlotValue(u8 record_slot_index);
+void BuildActiveControllerRecordBoundaryTable(void);
+void BuildMipType2ControllerRecordBoundaryTable(void);
+void BuildMipType2ControllerRecordBoundaryTableWithInheritedCount(u8 inherited_segment_count);
+void InitializePrimaryType2ControllerRecordDescriptorsAndBoundsFromIndex(u8 first_descriptor_index);
+void InitializePrimaryType2ControllerRecordDescriptorsAndBounds(void);
+void InitializeType2ControllerRecordDescriptorTablesAndBoundsFromIndex(u8 first_descriptor_index);
+void InitializeType2ControllerRecordDescriptorTablesAndBounds(void);
+void InitializeType2ControllerRecordRuntimeStateFromWorkingTrack(void);
+u8 PLEXTOR_NEAR_FUNCTION LocateAndAdjustType2ControllerRecordWindow(void);
+
+#endif

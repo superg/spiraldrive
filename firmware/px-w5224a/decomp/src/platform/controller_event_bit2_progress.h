@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_EVENT_BIT2_PROGRESS_H
+#define PLEXTOR_CONTROLLER_EVENT_BIT2_PROGRESS_H
+
+void HandleControllerEventBit2ReadMeasurementProgress(void);
+
+#endif

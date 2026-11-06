@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_PLATFORM_BUFFER_TRANSFER_SETUP_H
+#define PLEXTOR_PLATFORM_BUFFER_TRANSFER_SETUP_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION PrepareBufferDataTransfer(void);
+
+#endif

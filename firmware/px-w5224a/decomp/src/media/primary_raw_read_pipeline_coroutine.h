@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_PRIMARY_RAW_READ_PIPELINE_COROUTINE_H
+#define PLEXTOR_PRIMARY_RAW_READ_PIPELINE_COROUTINE_H
+
+void RunPrimaryRawReadPipelineCoroutine2(void);
+
+#endif

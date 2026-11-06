@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_CURRENT_STATE_CALIBRATION_H
+#define PLEXTOR_CONTROLLER_CURRENT_STATE_CALIBRATION_H
+
+#include "mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION RunControllerCalibrationForCurrentDriveState(void);
+
+#endif

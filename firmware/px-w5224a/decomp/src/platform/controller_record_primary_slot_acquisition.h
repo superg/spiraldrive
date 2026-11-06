@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_RECORD_PRIMARY_SLOT_ACQUISITION_H
+#define PLEXTOR_CONTROLLER_RECORD_PRIMARY_SLOT_ACQUISITION_H
+
+#include "mcs251.h"
+
+u8 AcquirePrimaryType2ControllerRecordSlot(u8 acquisition_mode, u8 record_slot_index, s32 start_frame_position);
+
+#endif

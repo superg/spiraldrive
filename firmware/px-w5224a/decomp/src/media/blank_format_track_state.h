@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_BLANK_FORMAT_TRACK_STATE_H
+#define PLEXTOR_BLANK_FORMAT_TRACK_STATE_H
+
+void UpdateTrackStateAfterBlankOrFormatOperation(void);
+
+#endif

@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_SERIES00_01_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_SERIES00_01_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION EvaluateControllerMeasurementSeries00And01(void);
+
+#endif

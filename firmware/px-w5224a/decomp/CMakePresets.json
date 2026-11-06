@@ -1,0 +1,33 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "windows",
+      "displayName": "Windows default generator / Keil C251",
+      "binaryDir": "${sourceDir}/out/windows",
+      "cacheVariables": {"KEIL_C251_ROOT": "C:/Keil_v5/C251", "BUILD_TESTING": "ON"}
+    },
+    {
+      "name": "host-tests",
+      "inherits": "windows",
+      "binaryDir": "${sourceDir}/out/agent-tests/host-tests",
+      "cacheVariables": {"PLEXTOR_BUILD_FIRMWARE": "OFF"}
+    },
+    {
+      "name": "ninja",
+      "inherits": "windows",
+      "displayName": "Optional Ninja / Keil C251",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/ninja"
+    }
+  ],
+  "buildPresets": [
+    {"name": "firmware", "configurePreset": "windows", "configuration": "Release", "targets": ["firmware"]},
+    {"name": "verify", "configurePreset": "windows", "configuration": "Release", "targets": ["verify"]}
+  ],
+  "testPresets": [
+    {"name": "windows", "configurePreset": "windows", "configuration": "Release", "output": {"outputOnFailure": true}},
+    {"name": "host-tests", "configurePreset": "host-tests", "configuration": "Release", "output": {"outputOnFailure": true}}
+  ]
+}

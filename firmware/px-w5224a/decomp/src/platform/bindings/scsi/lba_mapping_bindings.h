@@ -1,0 +1,30 @@
+#include "platform/firmware_map.h"
+
+/* Host/target substitutions for the corresponding firmware unit.
+ * Intentionally included more than once with PLEXTOR_BINDING_SECTION. */
+
+#if PLEXTOR_BINDING_SECTION == 1
+#if defined(PLEXTOR_HOST_TEST)
+extern void FirmwareWriteBit001B(u8 value);
+extern s32 DispatchMapLogicalBlockAddressThroughTrackPacketLayout(s32 logical_block_address);
+extern s32 DispatchMapNegativeLogicalBlockAddressThroughThirtyTwoPlusSevenLayout(s32 logical_block_address);
+extern s32 DispatchMapLogicalBlockAddressThroughAlternateRecordLayout(s32 logical_block_address);
+#define ClearLbaMappingAlternateBit() FirmwareWriteBit001B(0u)
+#define SetLbaMappingAlternateBit() FirmwareWriteBit001B(1u)
+#define MapThroughTrackPacketLayout(value) DispatchMapLogicalBlockAddressThroughTrackPacketLayout(value)
+#define MapNegativeThroughThirtyTwoPlusSevenLayout(value) DispatchMapNegativeLogicalBlockAddressThroughThirtyTwoPlusSevenLayout(value)
+#define MapThroughAlternateRecordLayout(value) DispatchMapLogicalBlockAddressThroughAlternateRecordLayout(value)
+#define LbaMappingFunction MapLogicalBlockAddressToControllerFramePositionForTest
+#else
+extern void PLEXTOR_NEAR_FUNCTION ClearBit001bForLbaMapping(void);
+extern void PLEXTOR_NEAR_FUNCTION SetBit001bForLbaMapping(void);
+extern s32 MapNegativeLogicalBlockAddressThroughThirtyTwoPlusSevenLayout(s32 logical_block_address);
+extern s32 MapLogicalBlockAddressThroughAlternateRecordLayout(s32 logical_block_address);
+#define ClearLbaMappingAlternateBit() ClearBit001bForLbaMapping()
+#define SetLbaMappingAlternateBit() SetBit001bForLbaMapping()
+#define MapThroughTrackPacketLayout(value) MapLogicalBlockAddressThroughTrackPacketLayout(value)
+#define MapNegativeThroughThirtyTwoPlusSevenLayout(value) MapNegativeLogicalBlockAddressThroughThirtyTwoPlusSevenLayout(value)
+#define MapThroughAlternateRecordLayout(value) MapLogicalBlockAddressThroughAlternateRecordLayout(value)
+#define LbaMappingFunction MapLogicalBlockAddressToControllerFramePosition
+#endif
+#endif

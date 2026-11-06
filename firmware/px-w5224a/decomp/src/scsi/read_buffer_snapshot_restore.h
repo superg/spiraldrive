@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SCSI_READ_BUFFER_SNAPSHOT_RESTORE_H
+#define PLEXTOR_SCSI_READ_BUFFER_SNAPSHOT_RESTORE_H
+
+void RestoreReadBufferMode1Id2Snapshot(void);
+
+#endif

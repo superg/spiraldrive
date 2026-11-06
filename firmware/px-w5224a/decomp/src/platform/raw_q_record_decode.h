@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_RAW_Q_RECORD_DECODE_H
+#define PLEXTOR_RAW_Q_RECORD_DECODE_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION CopyAndDecodeRawReadQRecordToFarTable(fw_addr_t source_record_address, fw_addr_t destination_record_address);
+void PLEXTOR_NEAR_FUNCTION CopyAndDecodeRawTocPayloadToFullTocDescriptorBody(fw_addr_t source_payload_address, fw_addr_t destination_descriptor_body_address);
+
+#endif

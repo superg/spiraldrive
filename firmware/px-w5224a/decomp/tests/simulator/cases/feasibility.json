@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "feasibility-integrated-command-completion",
+      "function": "0xfb46ea",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 100000,
+      "origin": "integrated SCSI command-completion feasibility probe",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {"registers": {}, "memory": []},
+      "memory": [],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "ignored_state": [
+        {
+          "name": "compiler scratch registers and unreferenced memory",
+          "reason": "The feasibility scenario compares termination and complete captured near/controller RAM changes across the real dependency graph."
+        }
+      ]
+    }
+  ]
+}

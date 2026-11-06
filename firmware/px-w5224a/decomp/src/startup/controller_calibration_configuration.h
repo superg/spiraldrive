@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_CALIBRATION_CONFIGURATION_H
+#define PLEXTOR_CONTROLLER_CALIBRATION_CONFIGURATION_H
+
+void LoadControllerCalibrationConfigurationState(void);
+
+#endif

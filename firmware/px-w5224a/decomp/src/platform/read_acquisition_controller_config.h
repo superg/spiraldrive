@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_READ_ACQUISITION_CONTROLLER_CONFIG_H
+#define PLEXTOR_READ_ACQUISITION_CONTROLLER_CONFIG_H
+
+void ConfigureReadAcquisitionControllerForCurrentState(void);
+
+#endif

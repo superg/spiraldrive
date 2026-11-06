@@ -1,0 +1,3137 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "boot-reset-to-coroutine-configuration",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdcfad",
+      "reconstructed_nonreturn_checkpoint_symbol": "ConfigureInitialCoroutines",
+      "instruction_limit": 100000,
+      "origin": "reset vector through FirmwareMainLoop to coroutine configuration",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 1,
+      "require_expected_stop": true,
+      "launch_via_jump": true
+    },
+    {
+      "id": "boot-reset-to-first-coroutine-resume",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee4fd",
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine0",
+      "instruction_limit": 10000,
+      "origin": "reset through startup countdown release and four initial coroutine contexts to scheduler ResumeCoroutine0",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 100,
+      "require_expected_stop": true,
+      "launch_via_jump": true,
+      "timed_writes": [
+        {
+          "after_states": 100,
+          "space": "RAM",
+          "address": "0x001214",
+          "value": 0
+        }
+      ],
+      "code_pointer_memory": [
+        {
+          "name": "coroutine_1_entry",
+          "address": "0x500"
+        },
+        {
+          "name": "coroutine_2_entry",
+          "address": "0x700"
+        },
+        {
+          "name": "coroutine_3_entry",
+          "address": "0x900"
+        }
+      ]
+    },
+    {
+      "id": "boot-reset-to-second-coroutine-resume",
+      "function": "0xf80050",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee508",
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine1",
+      "instruction_limit": 500000,
+      "origin": "reset through timed countdown release, controller-ready startup and CRC initialization, coroutine0 resume/yield, then scheduler ResumeCoroutine1",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0000fb",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x001157",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x00faef",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x018043",
+          "bytes": [
+            1
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "minimum_states": 50000,
+      "require_expected_stop": true,
+      "launch_via_jump": true,
+      "timed_writes": [
+        {
+          "after_states": 100,
+          "space": "RAM",
+          "address": "0x001214",
+          "value": 0
+        }
+      ],
+      "code_pointer_memory": [
+        {
+          "name": "coroutine_1_entry",
+          "address": "0x500"
+        },
+        {
+          "name": "coroutine_2_entry",
+          "address": "0x700"
+        },
+        {
+          "name": "coroutine_3_entry",
+          "address": "0x900"
+        }
+      ]
+    },
+    {
+      "id": "host-command-unsupported-opcode-completion",
+      "function": "0xfa34b2",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 100000,
+      "minimum_states": 20,
+      "require_expected_stop": true,
+      "origin": "current SCSI dispatch through unsupported-opcode sense and controller completion",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            255
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": []
+    },
+    {
+      "id": "host-command-inquiry-4-byte-completion",
+      "function": "0xfa34b2",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "minimum_states": 1000,
+      "require_expected_stop": true,
+      "origin": "current SCSI dispatch through four-byte INQUIRY buffer copy, modeled data-in completion, and command return; S251 exposes the copied bank at 0x010000",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "inquiry_payload",
+            "address": "0x010000",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            18,
+            0,
+            0,
+            0,
+            4,
+            0
+          ]
+        },
+        {
+          "address": "0x00dcc5",
+          "bytes": [
+            5,
+            128,
+            0,
+            33,
+            91,
+            0,
+            0,
+            0,
+            80,
+            76,
+            69,
+            88,
+            84,
+            79,
+            82,
+            32,
+            67,
+            68,
+            45,
+            82,
+            32,
+            32,
+            32,
+            80,
+            88,
+            45,
+            87,
+            53,
+            50,
+            50,
+            52,
+            65,
+            49,
+            46,
+            48,
+            52
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "timed_writes": [
+        {
+          "after_states": 1000,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "host-command-error-then-request-sense",
+      "function": "0xfa34b2",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 20000,
+      "minimum_states": 2000,
+      "require_expected_stop": true,
+      "origin": "two sequential dispatcher calls: unsupported opcode completes with sense 05/24/00, then REQUEST SENSE transfers its 18-byte response and returns",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "request_sense_payload",
+            "address": "0x010000",
+            "length": 18
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            255
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "second_call_memory": [
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            3,
+            0,
+            0,
+            0,
+            18,
+            0
+          ]
+        }
+      ],
+      "timed_writes": [
+        {
+          "after_states": 2000,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "host-command-packet-ingress-inquiry-completion",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdc215",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 3500,
+      "origin": "command coroutine receives a twelve-byte INQUIRY packet, admits and dispatches it, transfers four response bytes on modeled data-in completion, publishes status, and reaches the idle-loop edge",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "inquiry_payload",
+            "address": "0x010000",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x00dcc5",
+          "bytes": [
+            5,
+            128,
+            0,
+            33,
+            91,
+            0,
+            0,
+            0,
+            80,
+            76,
+            69,
+            88,
+            84,
+            79,
+            82,
+            32,
+            67,
+            68,
+            45,
+            82,
+            32,
+            32,
+            32,
+            80,
+            88,
+            45,
+            87,
+            53,
+            50,
+            50,
+            52,
+            65,
+            49,
+            46,
+            48,
+            52
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            18,
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128,
+            192
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_offset": 121,
+      "timed_writes": [
+        {
+          "after_states": 3500,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "host-command-packet-ingress-inquiry-then-unsupported",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdc215",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 4000,
+      "origin": "same command coroutine receives INQUIRY and an unsupported second packet, transfers first response, publishes two completions, and returns to the idle-loop edge each time",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "inquiry_payload",
+            "address": "0x010000",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x00dcc5",
+          "bytes": [
+            5,
+            128,
+            0,
+            33,
+            91,
+            0,
+            0,
+            0,
+            80,
+            76,
+            69,
+            88,
+            84,
+            79,
+            82,
+            32,
+            67,
+            68,
+            45,
+            82,
+            32,
+            32,
+            32,
+            80,
+            88,
+            45,
+            87,
+            53,
+            50,
+            50,
+            52,
+            65,
+            49,
+            46,
+            48,
+            52
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            18,
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128,
+            192,
+            192
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_offset": 121,
+      "timed_writes": [
+        {
+          "after_states": 3500,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ],
+      "repeat_nonreturn_memory": [
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-command-packet-ingress-error-then-request-sense",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdc215",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 5000,
+      "origin": "same command coroutine receives unsupported opcode then REQUEST SENSE, publishes error, transfers eighteen sense bytes, and publishes second completion",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "request_sense_payload",
+            "address": "0x010000",
+            "length": 18
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x00dcc5",
+          "bytes": [
+            5,
+            128,
+            0,
+            33,
+            91,
+            0,
+            0,
+            0,
+            80,
+            76,
+            69,
+            88,
+            84,
+            79,
+            82,
+            32,
+            67,
+            68,
+            45,
+            82,
+            32,
+            32,
+            32,
+            80,
+            88,
+            45,
+            87,
+            53,
+            50,
+            50,
+            52,
+            65,
+            49,
+            46,
+            48,
+            52
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0,
+            18,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128,
+            192,
+            192
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_offset": 121,
+      "timed_writes": [
+        {
+          "after_states": 5000,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ],
+      "repeat_nonreturn_memory": [
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "write-buffer-mode5-invalid-buffer-id",
+      "function": "0xfd2741",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "minimum_states": 500,
+      "require_expected_stop": true,
+      "origin": "WRITE BUFFER mode-5 CDB with buffer ID 3 through validation and command-sequence-error sense; returns before runtime programmer handoff",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            59,
+            5,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ]
+    },
+    {
+      "id": "write-buffer-mode5-main-format-busy",
+      "function": "0xfd2741",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "minimum_states": 100,
+      "require_expected_stop": true,
+      "origin": "WRITE BUFFER mode-5 main-image request rejected by nonzero format state before payload reception or programmer handoff",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            59,
+            5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x000c9e",
+          "bytes": [
+            1
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ]
+    },
+    {
+      "id": "write-buffer-mode4-out-of-range-staging",
+      "function": "0xfd2741",
+      "mode": "integrated",
+      "termination": "eret",
+      "instruction_limit": 10000,
+      "minimum_states": 500,
+      "require_expected_stop": true,
+      "origin": "WRITE BUFFER mode-4 CDB requests 0x20 bytes at offset 0x0ff0 from a 0x1000-byte staging buffer; real handler rejects the overrun before payload reception or runtime programmer handoff.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "sense_response",
+            "address": "0x000b18",
+            "length": 18
+          },
+          {
+            "name": "transfer_status",
+            "address": "0x000c33",
+            "length": 1
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000b0a",
+          "bytes": [
+            59,
+            4,
+            0,
+            0,
+            15,
+            240,
+            0,
+            0,
+            32,
+            0
+          ]
+        },
+        {
+          "address": "0x001556",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ]
+    },
+    {
+      "id": "host-command-packet-ingress-read-buffer-capacity",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdc215",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 4500,
+      "origin": "Command coroutine receives READ BUFFER mode-3 packet, admits and dispatches it, returns four-byte staging-buffer capacity descriptor, publishes completion, and reaches idle-loop edge.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "read_buffer_descriptor",
+            "address": "0x000b2a",
+            "length": 4
+          },
+          {
+            "name": "controller_payload",
+            "address": "0x010000",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x001556",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            60,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128,
+            192
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_offset": 121,
+      "timed_writes": [
+        {
+          "after_states": 4500,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "host-command-packet-ingress-read-capacity10-then-unsupported",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfdc215",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 5000,
+      "origin": "Firmware 1.04 command coroutine receives READ CAPACITY(10) with declared ready media, 4096-block capacity and 2048-byte logical block; transfers eight-byte response, publishes completion, then accepts unsupported opcode as second packet and publishes its error without stale capacity state.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "capacity_response",
+            "address": "0x000b2a",
+            "length": 8
+          },
+          {
+            "name": "controller_payload",
+            "address": "0x010000",
+            "length": 8
+          },
+          {
+            "name": "sense_response",
+            "address": "0x000b18",
+            "length": 18
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c85",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x0012c1",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000b00",
+          "bytes": [
+            8,
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            37,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128,
+            192,
+            192
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_offset": 121,
+      "timed_writes": [
+        {
+          "after_states": 4500,
+          "space": "RAM",
+          "address": "0x000c33",
+          "value": 4
+        }
+      ],
+      "repeat_nonreturn_memory": [
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "queue-reset-full-slot-count-low-word",
+      "function": "0xf927bd",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 100000,
+      "origin": "32-bit RAM:00156a slot count, stock DR4 subtraction and WR6 stores",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [
+        {
+          "address": "0x0008",
+          "value": 0
+        },
+        {
+          "address": "0x000f",
+          "value": 0
+        },
+        {
+          "address": "0x0022",
+          "value": 0
+        }
+      ],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ring_limits",
+            "address": "0x00129a",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x00156a",
+          "bytes": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [
+        "RAM:f92955"
+      ],
+      "code_patches": [],
+      "ignored_state": [
+        {
+          "name": "compiler scratch registers and unreferenced memory",
+          "reason": "The case compares termination and declared ring-limit output; compiler scratch is not an ABI output."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "ring_limits": [
+            1,
+            255,
+            1,
+            250
+          ]
+        }
+      }
+    },
+    {
+      "id": "main-ring-geometry-mode1-controller-byte-order",
+      "function": "0xfdbdff",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 100000,
+      "origin": "canonical RAM:fdbe42..fdbe64 low/middle/high controller port writes",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "R11": 1
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ring_size",
+            "address": "0x00155e",
+            "length": 4
+          },
+          {
+            "name": "slot_count",
+            "address": "0x00156a",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000fca",
+          "bytes": [
+            16
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018013",
+          "value": 0
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018014",
+          "value": 48
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 9
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "ignored_state": [
+        {
+          "name": "compiler scratch registers and unreferenced memory",
+          "reason": "Compiler scratch registers are not observable function outputs."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "ring_size": [
+            0,
+            9,
+            48,
+            0
+          ],
+          "slot_count": [
+            0,
+            0,
+            1,
+            0
+          ]
+        }
+      },
+      "stock_hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018013",
+          "value": 0
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018014",
+          "value": 48
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 9
+        }
+      ],
+      "minimum_states": 30
+    },
+    {
+      "id": "main-ring-geometry-mode2-controller-byte-order",
+      "function": "0xfdbdff",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 100000,
+      "origin": "canonical RAM:fdbe42..fdbe64 low/middle/high controller port writes",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "R11": 2
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "ring_size",
+            "address": "0x00155e",
+            "length": 4
+          },
+          {
+            "name": "slot_count",
+            "address": "0x00156a",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000fca",
+          "bytes": [
+            16
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018013",
+          "value": 0
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018014",
+          "value": 96
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 18
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "ignored_state": [
+        {
+          "name": "compiler scratch registers and unreferenced memory",
+          "reason": "Compiler scratch registers are not observable function outputs."
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "ring_size": [
+            0,
+            18,
+            96,
+            0
+          ],
+          "slot_count": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      },
+      "stock_hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018013",
+          "value": 0
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018014",
+          "value": 96
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018015",
+          "value": 18
+        }
+      ],
+      "minimum_states": 30
+    },
+    {
+      "id": "host-command-read10-first-media-yield",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee529",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 2000,
+      "origin": "One-block READ(10) packet reaches the first raw-sector acquisition yield with a safe direct-launch stack above persistent bit-addressable RAM. Compare decoded command, coroutine-two target, bit byte and ordered controller cursor writes.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "SP": 64
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {},
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "read_lba",
+            "address": "0x000b02",
+            "length": 4
+          },
+          {
+            "name": "read_blocks",
+            "address": "0x000b06",
+            "length": 4
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "raw_read_mode",
+            "address": "0x000c2a",
+            "length": 1
+          },
+          {
+            "name": "raw_read_target",
+            "address": "0x001598",
+            "length": 4
+          },
+          {
+            "name": "raw_read_completion_state",
+            "address": "0x001226",
+            "length": 1
+          }
+        ],
+        "direct": [
+          {
+            "name": "bit_byte_22",
+            "space": "INTERNAL",
+            "address": "0x22"
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c85",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x0012c1",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000b00",
+          "bytes": [
+            8,
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            40,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_symbol": "YieldCoroutine0",
+      "code_pointer_memory": [
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700",
+          "stock_value": "0x00f90000",
+          "reconstructed_value": "0x00fde81b"
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018004",
+          "values": [
+            0,
+            128
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x01802d",
+          "values": [
+            32
+          ]
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "received_cdb": [
+            40,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "read_lba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "read_blocks": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "packet_state": [
+            1
+          ],
+          "raw_read_mode": [
+            2
+          ],
+          "raw_read_target": [
+            0,
+            0,
+            0,
+            150
+          ],
+          "raw_read_completion_state": [
+            0
+          ],
+          "coroutine2_entry": "0xf90000",
+          "bit_byte_22": 16
+        }
+      }
+    },
+    {
+      "id": "host-command-read10-first-media-yield-returns-scheduler",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee508",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 30000,
+      "minimum_states": 2000,
+      "origin": "One-block READ(10) packet from real ingress reaches the first raw-sector acquisition yield and returns through authentic YieldCoroutine0 to captured scheduler SPX, with 512-slot ring geometry and safe command stack above persistent bit-addressable RAM.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "SP": 64,
+        "DR60": 768
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "SP": 1
+        },
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "read_lba",
+            "address": "0x000b02",
+            "length": 4
+          },
+          {
+            "name": "read_blocks",
+            "address": "0x000b06",
+            "length": 4
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "raw_read_mode",
+            "address": "0x000c2a",
+            "length": 1
+          },
+          {
+            "name": "raw_read_target",
+            "address": "0x001598",
+            "length": 4
+          },
+          {
+            "name": "raw_read_completion_state",
+            "address": "0x001226",
+            "length": 1
+          },
+          {
+            "name": "scheduler_spx",
+            "address": "0x00115a",
+            "length": 4
+          },
+          {
+            "name": "ring_slot_count",
+            "address": "0x00156a",
+            "length": 4
+          },
+          {
+            "name": "ring_limit_minus1",
+            "address": "0x00129a",
+            "length": 2
+          },
+          {
+            "name": "ring_limit_minus6",
+            "address": "0x00129c",
+            "length": 2
+          },
+          {
+            "name": "coroutine0_spx_high",
+            "address": "0x00115e",
+            "length": 3
+          },
+          {
+            "name": "coroutine2_spx",
+            "address": "0x001166",
+            "length": 4
+          }
+        ],
+        "direct": [
+          {
+            "name": "bit_byte_22",
+            "space": "INTERNAL",
+            "address": "0x22"
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x000c85",
+          "bytes": [
+            2
+          ]
+        },
+        {
+          "address": "0x000fae",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x0012c1",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000b00",
+          "bytes": [
+            8,
+            0
+          ]
+        },
+        {
+          "address": "0x00115a",
+          "bytes": [
+            0,
+            0,
+            0,
+            10
+          ]
+        },
+        {
+          "address": "0x00156a",
+          "bytes": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            40,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine1",
+      "code_pointer_memory": [
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700",
+          "stock_value": "0x00f90000",
+          "reconstructed_value": "0x00fde81b"
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x018004",
+          "values": [
+            0,
+            128
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x01802d",
+          "values": [
+            32
+          ]
+        }
+      ],
+      "expected_observations": {
+        "memory": {
+          "received_cdb": [
+            40,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "read_lba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "read_blocks": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "packet_state": [
+            1
+          ],
+          "raw_read_mode": [
+            2
+          ],
+          "raw_read_target": [
+            0,
+            0,
+            0,
+            150
+          ],
+          "raw_read_completion_state": [
+            0
+          ],
+          "coroutine2_entry": "0xf90000",
+          "bit_byte_22": 16,
+          "scheduler_spx": [
+            0,
+            0,
+            0,
+            10
+          ],
+          "ring_slot_count": [
+            0,
+            0,
+            2,
+            0
+          ],
+          "ring_limit_minus1": [
+            1,
+            255
+          ],
+          "ring_limit_minus6": [
+            1,
+            250
+          ],
+          "coroutine0_spx_high": [
+            0,
+            0,
+            3
+          ],
+          "coroutine2_spx": [
+            0,
+            0,
+            7,
+            7
+          ]
+        },
+        "registers": {
+          "SP": 10
+        }
+      },
+      "stock_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            0,
+            5,
+            7,
+            5,
+            0,
+            192,
+            0,
+            253,
+            207,
+            128,
+            253,
+            208,
+            20,
+            0,
+            0
+          ]
+        }
+      ],
+      "reconstructed_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            251,
+            46,
+            149,
+            0,
+            251,
+            46,
+            149,
+            253,
+            207,
+            93,
+            0,
+            253,
+            207,
+            249,
+            0
+          ]
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x001161",
+          "length": 1,
+          "reason": "Saved coroutine-zero SPX low byte reflects stock/C251 frame-depth differences after authentic yield; scheduler SPX and command state remain asserted."
+        }
+      ]
+    },
+    {
+      "id": "write-buffer-mode4-valid-yield-returns-scheduler",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee508",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 2000,
+      "origin": "Valid four-byte WRITE BUFFER mode 4 CDB with side-specific scheduler return bytes captured after physical reset; first real coroutine-zero yield returns to ResumeCoroutine1.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "DR60": 768
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "SP": 1
+        },
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "transfer_state",
+            "address": "0x000c33",
+            "length": 1
+          },
+          {
+            "name": "sense",
+            "address": "0x000b18",
+            "length": 18
+          },
+          {
+            "name": "scheduler_spx",
+            "address": "0x00115a",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x001556",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000faf",
+          "bytes": [
+            3
+          ]
+        },
+        {
+          "address": "0x00115a",
+          "bytes": [
+            0,
+            0,
+            0,
+            10
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            59,
+            4,
+            0,
+            0,
+            0,
+            16,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "timed_writes": [],
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine1",
+      "stock_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            0,
+            5,
+            7,
+            5,
+            0,
+            192,
+            0,
+            253,
+            207,
+            128,
+            253,
+            208,
+            20,
+            0,
+            0
+          ]
+        }
+      ],
+      "reconstructed_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            251,
+            46,
+            149,
+            0,
+            251,
+            46,
+            149,
+            253,
+            207,
+            93,
+            0,
+            253,
+            207,
+            249,
+            0
+          ]
+        }
+      ],
+      "code_pointer_memory": [
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700",
+          "stock_value": "0x00f84a00",
+          "reconstructed_value": "0x00fce99d"
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x001161",
+          "length": 1,
+          "reason": "Saved coroutine-zero SPX low byte reflects different stock/C251 frame depths (0x18/0x22); controlled ResumeCoroutine0 continuation separately verifies both saved contexts reenter DATA OUT transfer."
+        }
+      ],
+      "expected_observations": {
+        "registers": {
+          "SP": 10
+        },
+        "memory": {
+          "received_cdb": [
+            59,
+            4,
+            0,
+            0,
+            0,
+            16,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0
+          ],
+          "packet_state": [
+            1
+          ],
+          "transfer_state": [
+            0
+          ],
+          "sense": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "scheduler_spx": [
+            0,
+            0,
+            0,
+            10
+          ],
+          "coroutine2_entry": "0xf84a00"
+        }
+      },
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ]
+    },
+    {
+      "id": "write-buffer-mode5-zero-length-finalize-first-yield",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee508",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 1500,
+      "origin": "Zero-length WRITE BUFFER mode-5 main-image finalize packet after ordinary staging; captured scheduler context and exact coroutine-two/three entry pointers at the first real yield.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "DR60": 768
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "SP": 1
+        },
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "transfer_state",
+            "address": "0x000c33",
+            "length": 1
+          },
+          {
+            "name": "sense",
+            "address": "0x000b18",
+            "length": 18
+          },
+          {
+            "name": "scheduler_spx",
+            "address": "0x00115a",
+            "length": 4
+          },
+          {
+            "name": "coroutine3_entry",
+            "address": "0x000900",
+            "length": 4
+          },
+          {
+            "name": "coroutine2_entry",
+            "address": "0x000700",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x001556",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000faf",
+          "bytes": [
+            3
+          ]
+        },
+        {
+          "address": "0x00115a",
+          "bytes": [
+            0,
+            0,
+            0,
+            10
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            59,
+            5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "timed_writes": [],
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine1",
+      "stock_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            0,
+            5,
+            7,
+            5,
+            0,
+            192,
+            0,
+            253,
+            207,
+            128,
+            253,
+            208,
+            20,
+            0,
+            0
+          ]
+        }
+      ],
+      "reconstructed_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            251,
+            46,
+            149,
+            0,
+            251,
+            46,
+            149,
+            253,
+            207,
+            93,
+            0,
+            253,
+            207,
+            249,
+            0
+          ]
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x001161",
+          "length": 1,
+          "reason": "Saved coroutine-zero SPX low byte reflects different stock/C251 frame depths at the first yield; exact scheduler SPX and coroutine entry pointers are asserted."
+        }
+      ],
+      "expected_observations": {
+        "registers": {
+          "SP": 10
+        },
+        "memory": {
+          "received_cdb": [
+            59,
+            5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "packet_state": [
+            1
+          ],
+          "transfer_state": [
+            0
+          ],
+          "sense": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "scheduler_spx": [
+            0,
+            0,
+            0,
+            10
+          ],
+          "coroutine3_entry": "0xf84b00",
+          "coroutine2_entry": "0xf84a00"
+        }
+      },
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ],
+      "code_pointer_memory": [
+        {
+          "name": "coroutine3_entry",
+          "address": "0x000900",
+          "stock_value": "0x00f84b00",
+          "reconstructed_value": "0x00fce9b7"
+        },
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700",
+          "stock_value": "0x00f84a00",
+          "reconstructed_value": "0x00fce99d"
+        }
+      ]
+    },
+    {
+      "id": "write-buffer-mode5-auxiliary-zero-length-finalize-first-yield",
+      "function": "0xfdbe7d",
+      "mode": "integrated",
+      "termination": "nonreturn",
+      "nonreturn_checkpoint": "0xfee508",
+      "launch_via_jump": true,
+      "require_expected_stop": true,
+      "instruction_limit": 20000,
+      "minimum_states": 1500,
+      "origin": "Zero-length WRITE BUFFER mode-5 auxiliary-image finalize packet (buffer ID 0xff) through the real first scheduler yield; captured scheduler and coroutine-two/three entry contexts.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {
+        "DR60": 768
+      },
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "SP": 1
+        },
+        "memory": [
+          {
+            "name": "received_cdb",
+            "address": "0x000b0a",
+            "length": 12
+          },
+          {
+            "name": "packet_state",
+            "address": "0x000c32",
+            "length": 1
+          },
+          {
+            "name": "transfer_state",
+            "address": "0x000c33",
+            "length": 1
+          },
+          {
+            "name": "sense",
+            "address": "0x000b18",
+            "length": 18
+          },
+          {
+            "name": "scheduler_spx",
+            "address": "0x00115a",
+            "length": 4
+          },
+          {
+            "name": "coroutine3_entry",
+            "address": "0x000900",
+            "length": 4
+          },
+          {
+            "name": "coroutine2_entry",
+            "address": "0x000700",
+            "length": 4
+          }
+        ]
+      },
+      "memory": [
+        {
+          "address": "0x000c88",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c32",
+          "bytes": [
+            17
+          ]
+        },
+        {
+          "address": "0x000c78",
+          "bytes": [
+            1
+          ]
+        },
+        {
+          "address": "0x018015",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x000c89",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x001556",
+          "bytes": [
+            0,
+            0,
+            16,
+            0
+          ]
+        },
+        {
+          "address": "0x000faf",
+          "bytes": [
+            3
+          ]
+        },
+        {
+          "address": "0x00115a",
+          "bytes": [
+            0,
+            0,
+            0,
+            10
+          ]
+        }
+      ],
+      "hardware_reads": [
+        {
+          "space": "SFR",
+          "address": "0x00d7",
+          "width": 1,
+          "values": [
+            0,
+            0
+          ]
+        },
+        {
+          "space": "CONTROLLER",
+          "address": "0x018000",
+          "width": 1,
+          "values": [
+            59,
+            5,
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "hardware_writes": [
+        {
+          "space": "CONTROLLER",
+          "address": "0x01804a",
+          "width": 1,
+          "values": [
+            128
+          ]
+        }
+      ],
+      "dependencies": [],
+      "code_patches": [],
+      "timed_writes": [],
+      "reconstructed_nonreturn_checkpoint_symbol": "ResumeCoroutine1",
+      "stock_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            0,
+            5,
+            7,
+            5,
+            0,
+            192,
+            0,
+            253,
+            207,
+            128,
+            253,
+            208,
+            20,
+            0,
+            0
+          ]
+        }
+      ],
+      "reconstructed_internal_memory": [
+        {
+          "address": "0x00",
+          "bytes": [
+            0,
+            251,
+            46,
+            149,
+            0,
+            251,
+            46,
+            149,
+            253,
+            207,
+            93,
+            0,
+            253,
+            207,
+            249,
+            0
+          ]
+        }
+      ],
+      "ignored_memory": [
+        {
+          "address": "0x001161",
+          "length": 1,
+          "reason": "Saved coroutine-zero SPX low byte reflects different stock/C251 frame depths at the first yield; exact scheduler SPX and coroutine entry pointers are asserted."
+        }
+      ],
+      "expected_observations": {
+        "registers": {
+          "SP": 10
+        },
+        "memory": {
+          "received_cdb": [
+            59,
+            5,
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "packet_state": [
+            1
+          ],
+          "transfer_state": [
+            0
+          ],
+          "sense": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "scheduler_spx": [
+            0,
+            0,
+            0,
+            10
+          ],
+          "coroutine3_entry": "0xf84b00",
+          "coroutine2_entry": "0xf84a00"
+        }
+      },
+      "forbidden_code_addresses": [
+        "0xff4000",
+        "0x000800"
+      ],
+      "code_pointer_memory": [
+        {
+          "name": "coroutine3_entry",
+          "address": "0x000900",
+          "stock_value": "0x00f84b00",
+          "reconstructed_value": "0x00fce9b7"
+        },
+        {
+          "name": "coroutine2_entry",
+          "address": "0x000700",
+          "stock_value": "0x00f84a00",
+          "reconstructed_value": "0x00fce99d"
+        }
+      ]
+    }
+  ]
+}

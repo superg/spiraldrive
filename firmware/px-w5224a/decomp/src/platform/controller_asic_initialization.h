@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_ASIC_INITIALIZATION_H
+#define PLEXTOR_CONTROLLER_ASIC_INITIALIZATION_H
+
+void InitializeControllerAsic(void);
+
+#endif

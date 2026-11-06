@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CLOSE_TRACK_SYNC_OPERATION_H
+#define PLEXTOR_CLOSE_TRACK_SYNC_OPERATION_H
+
+void ExecuteCloseTrackOrSynchronizeCacheOperation(void);
+
+#endif

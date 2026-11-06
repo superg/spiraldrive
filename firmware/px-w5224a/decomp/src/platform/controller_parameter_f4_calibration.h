@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_CONTROLLER_PARAMETER_F4_CALIBRATION_H
+#define PLEXTOR_CONTROLLER_PARAMETER_F4_CALIBRATION_H
+
+void CalibrateControllerParameterF4(void);
+
+#endif

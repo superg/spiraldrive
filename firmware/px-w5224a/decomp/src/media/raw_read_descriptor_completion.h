@@ -1,0 +1,15 @@
+#ifndef PLEXTOR_RAW_READ_DESCRIPTOR_COMPLETION_H
+#define PLEXTOR_RAW_READ_DESCRIPTOR_COMPLETION_H
+
+#include "../platform/mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION HandleRawReadDescriptorForCompletionFlags(void);
+u8 PLEXTOR_NEAR_FUNCTION BuildOrQueueRawSectorDescriptorForReadPhase1(void);
+u8 PLEXTOR_NEAR_FUNCTION BuildOrQueueRawSectorDescriptorForReadPhase2(void);
+void PLEXTOR_NEAR_FUNCTION ServiceParsedQRawReadCountdownAndEnqueueDescriptor(u16 base_descriptor_status);
+void PLEXTOR_NEAR_FUNCTION EnqueueRawSectorDescriptorWithTimingGate(u16 base_descriptor_status, u8 descriptor_mode);
+void PLEXTOR_NEAR_FUNCTION ServiceRawReadCountdownAndEnqueueDescriptor(u8 raw_sector_source_kind, u16 base_descriptor_status);
+void PLEXTOR_NEAR_FUNCTION ServiceParsedQDescriptorCountdownAndPositionAdvance(void);
+void HandleRawReadHostTransferDescriptorCompletion(void);
+
+#endif

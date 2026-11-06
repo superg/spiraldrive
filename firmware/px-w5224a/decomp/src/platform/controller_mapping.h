@@ -1,0 +1,21 @@
+#ifndef PLEXTOR_CONTROLLER_MAPPING_H
+#define PLEXTOR_CONTROLLER_MAPPING_H
+#include "mcs251.h"
+u8 MapOperatingCodeToProfileIndex(u8 operating_code);
+u8 MapOperatingCodeToTransitionClass(u8 operating_code);
+u8 MapOperatingCodeToProfileIndexMinusSeven(u8 operating_code);
+void UpdateState103ABit6ForMediaState(void);
+u8 PLEXTOR_NEAR_FUNCTION MapOperatingCodeToControllerChannel3Value(u8 operating_code);
+u8 IsSignedByteLessThanNegative45(u8 value);
+u8 PLEXTOR_NEAR_FUNCTION MapControllerRegisterIndexSkippingGap(u8 index);
+u8 ClearControllerMeasurementSeriesFromIndex(u8 first_word_index);
+u8 PLEXTOR_NEAR_FUNCTION ClearControllerMeasurementSeries(void);
+void CopyControllerMeasurementSeries00Through05To07Through12(void);
+void SelectMediaStrategyRecordIndexForAtipClass1(void);
+void SelectMediaStrategyRecordIndexForAtipClass2(void);
+void SelectMediaStrategyRecordIndexForAtipSelector1(void);
+void SelectAndPublishMediaStrategyOffsetFromAtipClass(u8 inherited_offset);
+void ApplySfrDaStrategyAdjustment(void);
+void ClearType2ControllerRecordWorkingState(void);
+void ResetEightChannelMeasurementCaptureState(void);
+#endif

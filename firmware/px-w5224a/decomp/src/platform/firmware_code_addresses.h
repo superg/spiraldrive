@@ -1,0 +1,66 @@
+#ifndef PLEXTOR_FIRMWARE_CODE_ADDRESSES_H
+#define PLEXTOR_FIRMWARE_CODE_ADDRESSES_H
+
+#include "mcs251.h"
+
+/* Host tests retain canonical addresses as observable values. The target build
+ * uses linker relocations so code may move without leaving stale entry words. */
+#if defined(PLEXTOR_HOST_TEST)
+#define PLEXTOR_CODE_ADDRESS(symbol, canonical) ((fw_addr_t)(canonical))
+#else
+#define PLEXTOR_CODE_ADDRESS(symbol, canonical) ((fw_addr_t)(symbol))
+#endif
+
+void InitializeThenIdleCoroutine2(void);
+void IdleCoroutine3(void);
+void RunDriveInitializationCoroutine1(void);
+void RunStartupSequenceCoroutine1(void);
+void ProcessDriveStateMachine(void);
+void RunDriveInitializationCompletionCoroutine1(void);
+void RunStartupStatusCoroutine1(void);
+void PLEXTOR_NEAR_FUNCTION ConfigureMediaReadStateForIndexedDriveState(void);
+void RunMediaStateCoroutine1(void);
+void ClearStartupStateAndSignalFailureCoroutine1(void);
+void PublishReadSetupFailureCoroutine1(void);
+void RunPrimaryRawReadPipelineCoroutine2(void);
+void RunAlternateRawReadPipelineCoroutine2(void);
+void RunRawReadPositionProbeCoroutine2(void);
+void RunVendorF6ReadAcquisitionCoroutine1(void);
+void RunMediaReadTransitionCoroutine1(void);
+void RunIndexedState0FOperationCoroutine0(void);
+void RunMediaReadControlCoroutine3(void);
+void ResetControllerAndIdleCoroutine1(void);
+void RunIndexedState04MediaReadCoroutine0(void);
+void RunConfiguredRawSectorReadCoroutine0(void);
+void RunReadAcquisitionCoroutine3(void);
+void ScsiCommandProcessorCoroutine0(void);
+void YieldCoroutine0Forever(void);
+void RunDriveOperationResultCoroutine0(void);
+
+#define FW_ENTRY_INITIALIZE_THEN_IDLE_COROUTINE2 PLEXTOR_CODE_ADDRESS(InitializeThenIdleCoroutine2, 0x00f84a00ul)
+#define FW_ENTRY_IDLE_COROUTINE3 PLEXTOR_CODE_ADDRESS(IdleCoroutine3, 0x00f84b00ul)
+#define FW_ENTRY_RUN_DRIVE_INITIALIZATION_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunDriveInitializationCoroutine1, 0x00f84b0bul)
+#define FW_ENTRY_RUN_STARTUP_SEQUENCE_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunStartupSequenceCoroutine1, 0x00f84c30ul)
+#define FW_ENTRY_PROCESS_DRIVE_STATE_MACHINE PLEXTOR_CODE_ADDRESS(ProcessDriveStateMachine, 0x00f84f6aul)
+#define FW_ENTRY_RUN_DRIVE_INITIALIZATION_COMPLETION_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunDriveInitializationCompletionCoroutine1, 0x00f852ebul)
+#define FW_ENTRY_RUN_STARTUP_STATUS_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunStartupStatusCoroutine1, 0x00f853cful)
+#define FW_ENTRY_CONFIGURE_MEDIA_READ_STATE_FOR_INDEXED_DRIVE_STATE PLEXTOR_CODE_ADDRESS(ConfigureMediaReadStateForIndexedDriveState, 0x00f859f0ul)
+#define FW_ENTRY_RUN_MEDIA_STATE_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunMediaStateCoroutine1, 0x00f85d74ul)
+#define FW_ENTRY_CLEAR_STARTUP_STATE_AND_SIGNAL_FAILURE_COROUTINE1 PLEXTOR_CODE_ADDRESS(ClearStartupStateAndSignalFailureCoroutine1, 0x00f8f07cul)
+#define FW_ENTRY_PUBLISH_READ_SETUP_FAILURE_COROUTINE1 PLEXTOR_CODE_ADDRESS(PublishReadSetupFailureCoroutine1, 0x00f8f773ul)
+#define FW_ENTRY_RUN_PRIMARY_RAW_READ_PIPELINE_COROUTINE2 PLEXTOR_CODE_ADDRESS(RunPrimaryRawReadPipelineCoroutine2, 0x00f90000ul)
+#define FW_ENTRY_RUN_ALTERNATE_RAW_READ_PIPELINE_COROUTINE2 PLEXTOR_CODE_ADDRESS(RunAlternateRawReadPipelineCoroutine2, 0x00f929abul)
+#define FW_ENTRY_RUN_RAW_READ_POSITION_PROBE_COROUTINE2 PLEXTOR_CODE_ADDRESS(RunRawReadPositionProbeCoroutine2, 0x00f9352dul)
+#define FW_ENTRY_RUN_VENDOR_F6_READ_ACQUISITION_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunVendorF6ReadAcquisitionCoroutine1, 0x00fa6da1ul)
+#define FW_ENTRY_RUN_MEDIA_READ_TRANSITION_COROUTINE1 PLEXTOR_CODE_ADDRESS(RunMediaReadTransitionCoroutine1, 0x00fa6e33ul)
+#define FW_ENTRY_RUN_INDEXED_STATE0F_OPERATION_COROUTINE0 PLEXTOR_CODE_ADDRESS(RunIndexedState0FOperationCoroutine0, 0x00fb3ed6ul)
+#define FW_ENTRY_RUN_MEDIA_READ_CONTROL_COROUTINE3 PLEXTOR_CODE_ADDRESS(RunMediaReadControlCoroutine3, 0x00fbc9e0ul)
+#define FW_ENTRY_RESET_CONTROLLER_AND_IDLE_COROUTINE1 PLEXTOR_CODE_ADDRESS(ResetControllerAndIdleCoroutine1, 0x00fbf1b6ul)
+#define FW_ENTRY_RUN_INDEXED_STATE04_MEDIA_READ_COROUTINE0 PLEXTOR_CODE_ADDRESS(RunIndexedState04MediaReadCoroutine0, 0x00fbfbb9ul)
+#define FW_ENTRY_RUN_CONFIGURED_RAW_SECTOR_READ_COROUTINE0 PLEXTOR_CODE_ADDRESS(RunConfiguredRawSectorReadCoroutine0, 0x00fd4f8eul)
+#define FW_ENTRY_RUN_READ_ACQUISITION_COROUTINE3 PLEXTOR_CODE_ADDRESS(RunReadAcquisitionCoroutine3, 0x00fd9659ul)
+#define FW_ENTRY_SCSI_COMMAND_PROCESSOR_COROUTINE0 PLEXTOR_CODE_ADDRESS(ScsiCommandProcessorCoroutine0, 0x00fdbe7dul)
+#define FW_ENTRY_YIELD_COROUTINE0_FOREVER PLEXTOR_CODE_ADDRESS(YieldCoroutine0Forever, 0x00fdc225ul)
+#define FW_ENTRY_RUN_DRIVE_OPERATION_RESULT_COROUTINE0 PLEXTOR_CODE_ADDRESS(RunDriveOperationResultCoroutine0, 0x00feb6bbul)
+
+#endif

@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_POSITION_SAMPLE_ACQUISITION_H
+#define PLEXTOR_CONTROLLER_POSITION_SAMPLE_ACQUISITION_H
+
+#include "mcs251.h"
+
+u8 PLEXTOR_NEAR_FUNCTION AcquireControllerPositionSamplesAndUpdateCalibration(void);
+
+#endif

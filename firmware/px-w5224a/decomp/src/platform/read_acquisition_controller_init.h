@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_READ_ACQUISITION_CONTROLLER_INIT_H
+#define PLEXTOR_READ_ACQUISITION_CONTROLLER_INIT_H
+
+void InitializeReadAcquisitionControllerRegisters(void);
+
+#endif

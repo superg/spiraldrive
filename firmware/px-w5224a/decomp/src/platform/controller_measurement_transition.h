@@ -1,0 +1,9 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_TRANSITION_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_TRANSITION_H
+
+#include "mcs251.h"
+
+u32 PLEXTOR_NEAR_FUNCTION ComputeControllerMeasurementReferenceForOperatingCode(u32 reference_value, u16 radial_scale_quotient, u8 operating_code);
+void ApplyControllerMeasurementReferenceAndTransitionProfile(void);
+
+#endif

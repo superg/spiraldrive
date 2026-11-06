@@ -1,0 +1,15 @@
+#ifndef PLEXTOR_EIGHT_CHANNEL_CAPTURE_H
+#define PLEXTOR_EIGHT_CHANNEL_CAPTURE_H
+
+#include "mcs251.h"
+
+void CaptureEightChannelMeasurementInputsAndStatus(void);
+void HandleControllerPacketInterrupt(void);
+void PLEXTOR_NEAR_FUNCTION AccumulateEightChannelMeasurementCapture(void);
+void FinalizeEightChannelMeasurementCapture(void);
+u8 PLEXTOR_NEAR_FUNCTION DoesCurrentDecodedFrameMatchFullTocPointA2(void);
+void FinalizeControllerCommand0EMeasurementCapture(void);
+u16 PLEXTOR_NEAR_FUNCTION ReadControllerCommand0EMeasurementWordWithTimeout(void);
+void PLEXTOR_NEAR_FUNCTION AccumulateControllerCommand0EMeasurementCapture(void);
+
+#endif

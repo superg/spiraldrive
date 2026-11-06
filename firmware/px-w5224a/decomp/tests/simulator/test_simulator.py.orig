@@ -1,0 +1,2193 @@
+import json
+from pathlib import Path
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+
+from tests.simulator import simulator
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class SimulatorTests(unittest.TestCase):
+    def test_intel_hex_preserves_high_address_and_checksums(self):
+        rendered = simulator.intel_hex(bytes(range(40)), 0xF8FFF0, 32)
+        lines = rendered.splitlines()
+        self.assertEqual(lines[0], ":0200000400F802")
+        self.assertIn(":0200000400F901", lines)
+        for line in lines:
+            raw = bytes.fromhex(line[1:])
+            self.assertEqual(sum(raw) & 0xFF, 0)
+
+    def test_source_catalog_accounts_for_every_canonical_function(self):
+        catalog = simulator.extract_source_functions(ROOT / "src")
+        self.assertEqual(len(catalog), simulator.CANONICAL_FUNCTION_COUNT)
+        self.assertEqual(catalog[0]["canonical_address"], "0xf80050")
+
+    def test_resume_identity_tracks_case_content_but_not_source_path(self):
+        first = [{"id": "case", "registers": {"R11": 1}, "case_file": "a.json"}]
+        moved = [{"id": "case", "registers": {"R11": 1}, "case_file": "b.json"}]
+        changed = [{"id": "case", "registers": {"R11": 2}, "case_file": "a.json"}]
+        self.assertEqual(
+            simulator.case_set_sha256(first), simulator.case_set_sha256(moved)
+        )
+        self.assertNotEqual(
+            simulator.case_set_sha256(first), simulator.case_set_sha256(changed)
+        )
+
+    def test_function_report_results_accounts_once_for_every_function(self):
+        catalog = [
+            {
+                "canonical_address": "0xf80050",
+                "symbol": "First",
+                "evidence": "smoke",
+            },
+            {
+                "canonical_address": "0xf80060",
+                "symbol": "Second",
+                "evidence": "mismatch",
+            },
+            {
+                "canonical_address": "0xf80070",
+                "symbol": "Third",
+                "evidence": "untested",
+            },
+        ]
+        cases = [
+            {"id": "first-a", "function": "0xf80050"},
+            {"id": "first-b", "function": "0xf80050"},
+            {"id": "second", "function": "0xf80060"},
+        ]
+        results = [
+            {"id": "first-a", "status": "pass"},
+            {"id": "first-b", "status": "pass"},
+            {"id": "second", "status": "mismatch", "differences": ["ACC"]},
+        ]
+        report = simulator.function_report_results(catalog, cases, results)
+        self.assertEqual(len(report), len(catalog))
+        self.assertEqual(
+            [entry["status"] for entry in report],
+            ["pass", "mismatch", "untested"],
+        )
+        self.assertEqual(report[1]["differences"], ["ACC"])
+
+    def test_committed_metadata_is_complete_and_matches_stock_firmware(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json",
+            ROOT / "data/W5224A104/MONT_104.bin",
+        )
+        self.assertEqual(metadata["function_count"], simulator.CANONICAL_FUNCTION_COUNT)
+        self.assertEqual(len(metadata["functions"]), simulator.CANONICAL_FUNCTION_COUNT)
+        self.assertEqual(metadata["language"], "80251-fixed:BE:24:default")
+
+    def test_metadata_rejects_the_wrong_stock_firmware(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stock = Path(temporary) / "wrong.bin"
+            stock.write_bytes(b"\xff" * 0x80000)
+            with self.assertRaisesRegex(simulator.SimulatorError, "SHA-256"):
+                simulator.load_metadata(
+                    ROOT / "tests/simulator/metadata/W5224A104.json", stock
+                )
+
+    def test_memory_application_provenance_rejects_a_stale_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            image = directory / "image.bin"
+            application = directory / "firmware_memory.abs"
+            provenance = directory / "firmware_memory.sha256"
+            image.write_bytes(b"\x00" * 0x80000)
+            application.write_bytes(b"abs")
+            provenance.write_text(
+                simulator.memory_application_identity(b"\x01" * 0x80000) + "\n",
+                encoding="ascii",
+            )
+            with self.assertRaisesRegex(
+                simulator.SimulatorError, "memory view does not match"
+            ):
+                simulator.validate_memory_application(image, application)
+
+    def test_memory_application_provenance_accepts_the_exact_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            image = directory / "image.bin"
+            application = directory / "firmware_memory.abs"
+            provenance = directory / "firmware_memory.sha256"
+            contents = b"\xa5" * 0x80000
+            image.write_bytes(contents)
+            application.write_bytes(b"abs")
+            provenance.write_text(
+                simulator.memory_application_identity(contents) + "\n",
+                encoding="ascii",
+            )
+            simulator.validate_memory_application(image, application)
+
+    def test_offline_inventory_and_generated_cases_account_for_all_functions(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        inventory = simulator.build_inventory(metadata)
+        self.assertEqual(inventory["function_count"], 1717)
+        self.assertEqual(sum(inventory["harness_counts"].values()), 1717)
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "auto.json"
+            args = type(
+                "Arguments",
+                (),
+                {
+                    "metadata": ROOT
+                    / "tests/simulator/metadata/W5224A104.json",
+                    "overrides": ROOT
+                    / "tests/simulator/cases/generated-overrides.json",
+                    "output": output,
+                    "instruction_limit": 100000,
+                },
+            )()
+            self.assertEqual(simulator.command_generate_cases(args), 0)
+            generated = json.loads(output.read_text())
+            self.assertEqual(generated["case_count"], 1717)
+            self.assertEqual(
+                generated["case_count"] + sum(generated["deferred"].values()),
+                1717,
+            )
+            cases_by_id = {case["id"]: case for case in generated["cases"]}
+            for case_id in (
+                "auto-fa0000",
+                "auto-fa05ef",
+                "auto-fa0ab4",
+                "auto-fa1341",
+                "auto-fa1ac5",
+                "auto-fa20f3",
+                "auto-fa24e9",
+            ):
+                wait_dependency = next(
+                    dependency
+                    for dependency in cases_by_id[case_id]["dependencies"]
+                    if isinstance(dependency, dict)
+                    and dependency["function"] == "RAM:fbff86"
+                )
+                self.assertEqual(wait_dependency["return"]["value"], 1)
+            self.assertEqual(cases_by_id["auto-fa0000"]["instruction_limit"], 250000)
+            self.assertEqual(cases_by_id["auto-fa1ac5"]["wall_timeout"], 180)
+            media_state_case = cases_by_id["auto-f85fdf"]
+            media_state_dependencies = {
+                dependency.get("function"): dependency
+                for dependency in media_state_case["dependencies"]
+                if isinstance(dependency, dict)
+            }
+            self.assertIn("RAM:fcf345", media_state_case["dependencies"])
+            self.assertEqual(
+                media_state_dependencies["RAM:f88a63"]["return"]["value"], 1
+            )
+            capacity_dependency = next(
+                dependency
+                for dependency in cases_by_id["auto-fa1ac5"]["dependencies"]
+                if isinstance(dependency, dict)
+                and dependency["function"] == "RAM:feaeca"
+            )
+            self.assertEqual(capacity_dependency["return"]["value"], 1)
+
+    def test_hardware_dependencies_get_deterministic_register_results(self):
+        metadata = {
+            "functions": [
+                {
+                    "canonical_address": "0x100000",
+                    "symbol": "Caller",
+                    "calls": [
+                        "RAM:100100",
+                        "RAM:100200",
+                        "RAM:100300",
+                        "RAM:100400",
+                    ],
+                    "return_sites": ["RAM:100010:eret"],
+                    "memory_references": [],
+                },
+                {
+                    "canonical_address": "0x100100",
+                    "symbol": "ReadHardware",
+                    "calls": [],
+                    "return_storage": "ACC:1",
+                    "return_sites": ["RAM:100110:eret"],
+                    "memory_references": ["SFR:00e3"],
+                },
+                {
+                    "canonical_address": "0x100200",
+                    "symbol": "WriteHardware",
+                    "calls": [],
+                    "return_storage": "<UNASSIGNED>",
+                    "return_sites": ["RAM:100210:eret"],
+                    "memory_references": ["RAM:018080"],
+                },
+                {
+                    "canonical_address": "0x100300",
+                    "symbol": "PureHelper",
+                    "calls": [],
+                    "return_storage": "DR4:4",
+                    "return_sites": ["RAM:100310:eret"],
+                    "memory_references": ["RAM:001000"],
+                },
+                {
+                    "canonical_address": "0x100400",
+                    "symbol": "HugeMemoryHelper",
+                    "calls": [],
+                    "return_storage": "<UNASSIGNED>",
+                    "return_sites": ["RAM:100410:eret"],
+                    "memory_references": ["RAM:2ba591"],
+                },
+            ]
+        }
+        self.assertEqual(
+            simulator.hardware_coupled_dependencies(
+                metadata["functions"][0], metadata
+            ),
+            [
+                {
+                    "function": "RAM:100100",
+                    "return": {"register": "R11", "value": 0},
+                },
+                "RAM:100200",
+                "RAM:100400",
+            ],
+        )
+
+    def test_sparse_override_changes_one_generated_dependency_result(self):
+        case = {
+            "dependencies": [
+                "RAM:100100",
+                {
+                    "function": "RAM:100200",
+                    "return": {"register": "R11", "value": 0},
+                },
+            ]
+        }
+        simulator.apply_dependency_result_overrides(
+            case, {"0x100200": 2}, Path("overrides.json")
+        )
+        self.assertEqual(case["dependencies"][1]["return"]["value"], 2)
+
+    def test_sparse_override_rejects_non_array_additional_dependencies(self):
+        with self.assertRaisesRegex(simulator.SimulatorError, "must be an array"):
+            with tempfile.TemporaryDirectory() as temporary:
+                override = Path(temporary) / "overrides.json"
+                output = Path(temporary) / "auto.json"
+                override.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "overrides": {
+                                "0xf80050": {"additional_dependencies": "bad"}
+                            },
+                        }
+                    )
+                )
+                simulator.command_generate_cases(
+                    type(
+                        "Arguments",
+                        (),
+                        {
+                            "metadata": ROOT
+                            / "tests/simulator/metadata/W5224A104.json",
+                            "overrides": override,
+                            "output": output,
+                            "instruction_limit": 100000,
+                        },
+                    )()
+                )
+
+    def test_sparse_override_marks_generated_dependency_nonreturning(self):
+        case = {"dependencies": ["RAM:100100", "RAM:100200"]}
+        simulator.apply_nonreturn_dependency_overrides(
+            case, ["0x100200"], Path("overrides.json")
+        )
+        self.assertEqual(
+            case["dependencies"],
+            ["RAM:100100", {"function": "0x100200", "nonreturn": True}],
+        )
+
+    def test_sparse_override_adds_dependency_bit_writes(self):
+        case = {"dependencies": ["RAM:100100", "RAM:100200"]}
+        writes = [{"address": "0x0009", "value": 1}]
+        simulator.apply_dependency_bit_write_overrides(
+            case, {"RAM:100200": writes}, Path("overrides.json")
+        )
+        self.assertEqual(
+            case["dependencies"],
+            ["RAM:100100", {"function": "RAM:100200", "bit_writes": writes}],
+        )
+
+    def test_dependency_trace_normalizes_compiler_local_pointer_aliases(self):
+        stock = [
+            {"operation": "call", "arguments": {"source": 0x73}},
+            {"operation": "call", "arguments": {"source16": 0x73}},
+        ]
+        reconstructed = [
+            {"operation": "call", "arguments": {"source": 0x105A0}},
+            {"operation": "call", "arguments": {"source16": 0x05A0}},
+        ]
+        names = {"source", "source16"}
+        self.assertEqual(
+            simulator.normalize_trace(stock, names),
+            simulator.normalize_trace(reconstructed, names),
+        )
+
+    def test_direct_case_registers_follow_reconstructed_parameter_abi(self):
+        case = {"registers": {"DR0": 0x1234, "R11": 3}}
+        remapped = simulator.remap_direct_case_registers(
+            case,
+            (("destinationAddress", "DR0", 4), ("format", "R11", 1)),
+            (("destination_address", "DR4", 4), ("format", "R11", 1)),
+        )
+        self.assertEqual(
+            remapped["registers"],
+            {"DR0": 0x1234, "DR4": 0x1234, "R11": 3},
+        )
+        self.assertEqual(case["registers"], {"DR0": 0x1234, "R11": 3})
+
+    def test_resume_reuses_only_unchanged_cases_when_case_set_changes(self):
+        first = {"id": "one", "function": "0xf80050", "value": 1}
+        second = {"id": "two", "function": "0xf80054", "value": 2}
+        old_identity = {
+            "runner_sha256": "runner",
+            "dependency_trace_sha256": "trace",
+            "cases_sha256": "old",
+            "case_ids_sha256": "ids",
+            "case_count": 2,
+            "shard_index": 0,
+            "shard_count": 1,
+        }
+        new_identity = dict(old_identity, cases_sha256="new")
+        previous = {
+            "run_identity": old_identity,
+            "results": [
+                {
+                    "id": "one",
+                    "status": "pass",
+                    "case_sha256": simulator.case_definition_sha256(first),
+                },
+                {
+                    "id": "two",
+                    "status": "pass",
+                    "case_sha256": simulator.case_definition_sha256(second),
+                },
+            ],
+        }
+        changed_second = dict(second, value=3)
+        reusable = simulator.reusable_results(
+            previous, new_identity, [first, changed_second]
+        )
+        self.assertEqual([result["id"] for result in reusable], ["one"])
+
+    def test_resume_rejects_results_when_global_input_changes(self):
+        case = {"id": "one", "function": "0xf80050"}
+        previous = {
+            "run_identity": {
+                "runner_sha256": "old",
+                "cases_sha256": "cases",
+            },
+            "results": [
+                {
+                    "id": "one",
+                    "status": "pass",
+                    "case_sha256": simulator.case_definition_sha256(case),
+                }
+            ],
+        }
+        self.assertEqual(
+            simulator.reusable_results(
+                previous,
+                {"runner_sha256": "new", "cases_sha256": "cases"},
+                [case],
+            ),
+            [],
+        )
+
+    def test_direct_case_materializes_memory_backed_reconstructed_parameter(self):
+        case = {"registers": {"B": 0x5A}, "memory": []}
+        remapped = simulator.remap_direct_case_registers(
+            case,
+            (("exclusiveEnd", "B", 1),),
+            (("exclusiveEnd", "XDATA@0x011a8b", 1),),
+        )
+        self.assertEqual(
+            remapped["memory"],
+            [{"address": "0x011a8b", "bytes": [0x5A]}],
+        )
+        self.assertEqual(
+            remapped["ignored_memory"],
+            [{"address": "0x011a8b", "length": 1}],
+        )
+
+    def test_memory_backed_parameter_resolves_from_linker_symbol(self):
+        parameters = simulator.dependency_parameters(
+            {
+                "symbol": "Example",
+                "parameters": ["exclusiveEnd:uchar:B:1"],
+                "reconstructed_parameter_memory": {
+                    "exclusiveEnd": "?Example??BYTE+9"
+                },
+            },
+            "reconstructed",
+            Path("unused.lst"),
+            "Example",
+            {"?Example??BYTE": 0x011A82},
+        )
+        self.assertEqual(parameters, (("exclusiveEnd", "XDATA@0x011a8b", 1),))
+
+    def test_listing_parameter_parser_recovers_accumulator_spill(self):
+        listing_text = """\
+; FUNCTION Example? (BEGIN)
+000000 900000 R MOV DPTR,#WORD0 target_mode
+000003 F0 MOVX @DPTR,A ; A=R11
+000004 7F31 MOV DR12,DR4
+;---- Variable 'target_position' assigned to Register 'DR12' ----
+000006 AA ERET
+; FUNCTION Example? (END)
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "example.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            registers = simulator.parse_listing_parameter_registers(
+                listing, "Example", {"targetmode", "targetposition"}
+            )
+        self.assertEqual(
+            registers,
+            {"targetposition": "DR4", "targetmode": "R11"},
+        )
+
+    def test_listing_parameter_parser_recovers_dword_register_spill(self):
+        listing_text = """\
+; FUNCTION Example? (BEGIN)
+000000 900000 R MOV DPTR,#WORD0 buffer_address
+000003 1BEA20 MOV @DR56,WR4
+000006 793E0002 MOV @DR56+0x2,WR6
+00000A AA ERET
+; FUNCTION Example? (END)
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "example.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            registers = simulator.parse_listing_parameter_registers(
+                listing, "Example", {"bufferaddress"}
+            )
+        self.assertEqual(registers, {"bufferaddress": "DR4"})
+
+    def test_listing_parameter_parser_recovers_word_register_spill(self):
+        listing_text = """\
+; FUNCTION Example? (BEGIN)
+000000 900000 R MOV DPTR,#WORD0 byte_count
+000003 1BEA10 MOV @DR56,WR2
+000006 7F31 MOV DR12,DR4
+000008 AA ERET
+; FUNCTION Example? (END)
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "example.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            registers = simulator.parse_listing_parameter_registers(
+                listing, "Example", {"bytecount"}
+            )
+        self.assertEqual(registers, {"bytecount": "WR2"})
+
+    def test_committed_metadata_records_strobe_dependency_adapter(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xf8a934")
+        self.assertEqual(
+            function["reconstructed_dependency_symbol"],
+            "StrobeControllerPortWriteByteFromC",
+        )
+
+    def test_committed_metadata_records_spilled_bank_scan_abi(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xfc6e53")
+        self.assertEqual(
+            function["reconstructed_dependency_parameters"],
+            [
+                "forceBankScan:bool:ACC:1",
+                "frameCount:uint:DR0:4",
+                "startFramePosition:int:DR4:4",
+            ],
+        )
+
+    def test_restart_coroutine_dependency_normalizes_its_entry_code_pointer(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        for address in ("0xfee555", "0xfee559"):
+            function = simulator.metadata_function(metadata, address)
+            self.assertEqual(function["dependency_code_parameters"], ["entryPoint"])
+
+    def test_indexed_state_reference_validation_declares_hdata_bank_2b(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        for address in ("0xfb40e9", "0xfb8c0e", "0xfbad3e", "0xfc2a37"):
+            function = simulator.metadata_function(metadata, address)
+            self.assertEqual(function["simulator_hdata_banks"], [0x2B])
+        controller_copy = simulator.metadata_function(metadata, "0xfddd78")
+        self.assertEqual(controller_copy["simulator_hdata_banks"], [0x10])
+        self.assertEqual(
+            simulator.simulator_hdata_relocations(controller_copy), {0x10: 0x01}
+        )
+        for address in ("0xfbf736", "0xfbfe72", "0xfc627c"):
+            window_function = simulator.metadata_function(metadata, address)
+            self.assertEqual(
+                simulator.simulator_hdata_relocations(window_function),
+                {0x10: 0x01},
+            )
+        for address in ("0xfc69ac", "0xfc6e53"):
+            function = simulator.metadata_function(metadata, address)
+            self.assertEqual(
+                simulator.simulator_hdata_relocations(function),
+                {0x19: 1, 0x2B: 0},
+            )
+        for address in ("0xfc766a", "0xfc7766"):
+            function = simulator.metadata_function(metadata, address)
+            self.assertEqual(
+                simulator.simulator_hdata_relocations(function),
+                {0x10: 0x01, 0x2B: 0},
+            )
+
+    def test_disc_position_acquisition_has_its_documented_acc_return(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xfc818b")
+        self.assertEqual(function["return_storage"], "ACC:1")
+
+    def test_mode_sense_page_builder_declares_reentrant_reconstructed_abi(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xfc2dcd")
+        self.assertEqual(
+            function["reconstructed_dependency_parameters"],
+            [
+                "responseAddress:uint:DR4:4",
+                "pageCode:uchar:R11:1",
+                "pageControl:uchar:R3:1",
+            ],
+        )
+
+    def test_materialize_memory_relocations_applies_image_specific_cpu_state(self):
+        case = {
+            "id": "abi-state",
+            "registers": {"SP": 7, "WR0": 1},
+            "stock_registers": {"DR0": 0x1234},
+            "reconstructed_registers": {"WR0": 2},
+            "internal_memory": [{"address": "0x20", "bytes": [3]}],
+            "stock_internal_memory": [{"address": "0x07", "bytes": [0, 4]}],
+            "stock_result_projections": [
+                {"address": "0x1700", "register": "WR0", "width": 2}
+            ],
+            "memory": [],
+            "memory_relocations": [],
+        }
+
+        stock = simulator.materialize_memory_relocations(case, "stock")
+        reconstructed = simulator.materialize_memory_relocations(
+            case, "reconstructed"
+        )
+
+        self.assertEqual(stock["registers"], {"SP": 7, "WR0": 1, "DR0": 0x1234})
+        self.assertEqual(
+            stock["internal_memory"],
+            [
+                {"address": "0x20", "bytes": [3]},
+                {"address": "0x07", "bytes": [0, 4]},
+            ],
+        )
+        self.assertEqual(
+            stock["_result_projections"],
+            [{"address": "0x1700", "register": "WR0", "width": 2}],
+        )
+        self.assertEqual(reconstructed["registers"], {"SP": 7, "WR0": 2})
+        self.assertEqual(
+            reconstructed["internal_memory"],
+            [{"address": "0x20", "bytes": [3]}],
+        )
+        self.assertEqual(reconstructed["_result_projections"], [])
+
+    def test_reset_all_record_tables_are_no_argument_thunks(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        for address in ("0xfb8be5", "0xfba4f7"):
+            function = simulator.metadata_function(metadata, address)
+            self.assertEqual(function["parameters"], [])
+
+    def test_toc_reset_shared_tail_uses_canonical_ret_site(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xfba4f7")
+        self.assertEqual(
+            simulator.canonical_shared_tail_return_sites(function, metadata),
+            [(0xFBA566, "ret")],
+        )
+
+    def test_indexed_toc_reset_declares_inherited_b_and_direct_worker(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xfba0bb")
+        self.assertEqual(
+            function["parameters"],
+            [
+                "reinitializeController:bool:ACC:1",
+                "firstPointIndex:uchar:B:1",
+            ],
+        )
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xfba0bb"]["dependency_reconstructed_symbols"][
+                "RAM:fba4f7"
+            ],
+            "ResetTocAcquisitionStateFromPointIndexAndFinalize",
+        )
+        self.assertEqual(
+            overrides["0xfba802"]["dependency_memory_writes"]["RAM:fc818b"],
+            [{"address": "0x001203", "bytes": [0]}],
+        )
+        self.assertEqual(overrides["0xfbad3e"]["instruction_limit"], 200000)
+        self.assertEqual(
+            overrides["0xfbd7d6"]["dependency_memory_writes"]["RAM:fee529"],
+            [{"address": "0x000e40", "bytes": [0]}],
+        )
+        self.assertEqual(overrides["0xfbdef0"]["dependencies"], [])
+        self.assertEqual(
+            overrides["0xfbf161"]["dependency_memory_writes"]["RAM:fee529"],
+            [{"address": "0x001208", "bytes": [255]}],
+        )
+        self.assertEqual(
+            overrides["0xfbfbb9"]["dependency_memory_writes"]["RAM:fee529"],
+            [{"address": "0x0015c3", "bytes": [1]}],
+        )
+        self.assertEqual(overrides["0xfbfe72"]["registers"], {"DR4": 12288})
+        self.assertEqual(
+            overrides["0xfbfe72"]["memory"],
+            [
+                {"address": "0x003002", "bytes": [49, 0]},
+                {"address": "0x003100", "bytes": [0, 0]},
+            ],
+        )
+        self.assertEqual(
+            overrides["0xfc549f"]["dependency_memory_writes"]["RAM:fee529"],
+            [{"address": "0x001462", "bytes": [0]}],
+        )
+        self.assertEqual(
+            overrides["0xfc6019"]["additional_dependencies"],
+            [
+                {
+                    "function": "RAM:fc6247",
+                    "return": {"register": "R11", "value": 0},
+                }
+            ],
+        )
+        self.assertEqual(
+            [
+                patch["reconstructed_symbol"]
+                for patch in overrides["0xfc69ac"]["code_patches"][:2]
+            ],
+            [
+                "CompressThirtyNineFramePositionToLogicalBlockAddress",
+                "ExpandLogicalBlockAddressToThirtyNineFramePosition",
+            ],
+        )
+        self.assertTrue(
+            all(
+                patch["stock_bytes"][-1] == 0x22
+                and patch["reconstructed_bytes"][-1] == 0xAA
+                for patch in overrides["0xfc69ac"]["code_patches"][:2]
+            )
+        )
+        self.assertEqual(
+            overrides["0xfc69ac"]["code_patches"][2]["reconstructed_offset"],
+            0x70,
+        )
+        self.assertEqual(
+            overrides["0xfc69ac"]["code_patches"][3]["reconstructed_offset"],
+            0x315,
+        )
+        self.assertEqual(
+            overrides["0xfc69ac"]["registers"], {"SP": 0x07, "SPH": 0x05}
+        )
+        self.assertTrue(overrides["0xfc69ac"]["stop_before_return"])
+        self.assertEqual(
+            overrides["0xfcd2f0"]["dependency_reconstructed_symbols"],
+            {
+                "RAM:fcd912": "FinalizeType2MipRecordComparisonStateForBoundaryBuild",
+                "RAM:fcda9d": "BuildMipType2ControllerRecordBoundaryTableWithInheritedCount",
+            },
+        )
+        self.assertEqual(
+            overrides["0xfcd2f0"]["code_patches"][1]["stock_bytes"],
+            [0, 0, 0],
+        )
+        self.assertEqual(
+            overrides["0xfcd2f0"]["code_patches"][-1][
+                "reconstructed_jump_offset"
+            ],
+            0x14F,
+        )
+        self.assertEqual(overrides["0xfcdc24"]["instruction_limit"], 300000)
+        self.assertEqual(
+            overrides["0xfcdc24"]["dependency_reconstructed_symbols"],
+            {"RAM:fcd87e": "CopyControllerBufferPageToUpperBankedRegionForC"},
+        )
+        self.assertEqual(
+            overrides["0xfcf967"]["additional_dependencies"], ["RAM:fcfda0"]
+        )
+        self.assertEqual(
+            overrides["0xfcfa0e"]["additional_dependencies"], ["RAM:fcfda0"]
+        )
+        self.assertEqual(
+            overrides["0xfcfda0"]["registers"], {"R11": 0, "DR0": 0x123D}
+        )
+        self.assertEqual(
+            [
+                dependency["function"]
+                for dependency in overrides["0xfcfda0"]["additional_dependencies"]
+            ],
+            ["RAM:fb9d48", "RAM:fee841"],
+        )
+        self.assertEqual(
+            overrides["0xfc6e53"]["code_patches"][0]["reconstructed_offset"],
+            0x5AB,
+        )
+
+    def test_raw_q_position_probe_supplies_a_valid_completed_descriptor(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xfc5e81"]["memory"],
+            [
+                {"address": "0x001292", "bytes": [0, 1]},
+                {"address": "0x001296", "bytes": [0, 1]},
+                {"address": "0x00129e", "bytes": [0, 0, 8, 0]},
+                {"address": "0x00080e", "bytes": [0, 0]},
+            ],
+        )
+
+    def test_radial_distance_cases_supply_nonzero_calibration(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        expected_memory = [
+            {"address": "0x000cf5", "bytes": [0, 0, 39, 16]},
+            {"address": "0x000cf9", "bytes": [0, 100]},
+            {"address": "0x001235", "bytes": [0, 0, 29, 76]},
+            {"address": "0x000e3b", "bytes": [0, 0, 58, 152]},
+        ]
+        for address in ("0xfc9254", "0xfc928f"):
+            self.assertEqual(overrides[address]["instruction_limit"], 250000)
+            self.assertEqual(overrides[address]["memory"], expected_memory)
+
+    def test_controller_parameter_calibration_case_converges_from_valid_sample(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xfc9a5b"]["memory"],
+            [{"address": "0x00fc05", "bytes": [0, 100]}],
+        )
+        self.assertEqual(overrides["0xfc9a5b"]["instruction_limit"], 250000)
+
+    def test_read_format_capacities_case_has_full_path_budget(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(overrides["0xfd2192"]["instruction_limit"], 200000)
+
+    def test_raw_sector_sequence_case_initializes_failure_branch_bits(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xfe8337"]["bits"],
+            [
+                {"address": "0x0028", "value": 0},
+                {"address": "0x0031", "value": 0},
+            ],
+        )
+
+    def test_d8d9_capture_override_supplies_ready_and_sample_sfrs(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        reads = overrides["0xfb9838"]["hardware_reads"]
+        self.assertEqual(
+            [(read["address"], read["value"]) for read in reads],
+            [
+                ("0x00f1", 3),
+                ("0x00f1", 3),
+                ("0x00d8", 0),
+                ("0x00d9", 0),
+            ]
+            * 10,
+        )
+
+    def test_radial_defaults_override_expires_interrupt_countdown(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        patch = overrides["0xfb9e47"]["code_patches"][0]
+        self.assertEqual(patch["stock_address"], "0xfb9e51")
+        self.assertEqual(patch["reconstructed_offset"], 10)
+        self.assertEqual(patch["stock_bytes"], [0x80])
+        self.assertEqual(patch["reconstructed_bytes"], [0x80])
+        self.assertEqual(overrides["0xfb9e9d"]["wall_timeout"], 180)
+        self.assertEqual(
+            overrides["0xfb9e9d"]["dependency_memory_writes"]["RAM:fc818b"],
+            [{"address": "0x001203", "bytes": [0]}],
+        )
+
+    def test_hdata_relocation_reaches_integrated_callees(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        root = simulator.metadata_function(metadata, "0xfa0ab4")
+        case = {
+            "dependencies": [
+                "RAM:fe17b1",
+                "RAM:fa286a",
+                "RAM:fe2aa0",
+                "RAM:fbff86",
+            ]
+        }
+        firmware = ROOT / "out/agent-tests/simulator-no-ghidra/firmware"
+        if not (firmware / "main.map").is_file():
+            self.skipTest("reconstructed Keil map is not available")
+        stock_patches, reconstructed_patches = (
+            simulator.automatic_hdata_relocation_patches(
+                case,
+                root,
+                metadata,
+                simulator.parse_keil_map(firmware / "main.map"),
+                simulator.index_listings(firmware),
+                ROOT / "data/W5224A104/MONT_104.bin",
+            )
+        )
+        self.assertTrue(stock_patches)
+        self.assertIn((0xFD6C78, [0, 0]), reconstructed_patches)
+
+        page_update = simulator.metadata_function(metadata, "0xfa4776")
+        _, page_update_patches = simulator.automatic_hdata_relocation_patches(
+            {"dependencies": []},
+            page_update,
+            metadata,
+            simulator.parse_keil_map(firmware / "main.map"),
+            simulator.index_listings(firmware),
+            ROOT / "data/W5224A104/MONT_104.bin",
+        )
+        self.assertIn((0xF9EF83, [0, 0]), page_update_patches)
+
+        for address in ("0xfa56c5", "0xfa5c30"):
+            reconciler = simulator.metadata_function(metadata, address)
+            _, reconciler_patches = simulator.automatic_hdata_relocation_patches(
+                {"dependencies": []},
+                reconciler,
+                metadata,
+                simulator.parse_keil_map(firmware / "main.map"),
+                simulator.index_listings(firmware),
+                ROOT / "data/W5224A104/MONT_104.bin",
+            )
+            self.assertIn((0xFA880D, [0, 0]), reconciler_patches)
+
+        range_anchors = simulator.metadata_function(metadata, "0xfab306")
+        _, range_anchor_patches = simulator.automatic_hdata_relocation_patches(
+            {"dependencies": ["RAM:faaa8c", "RAM:fe01d3"]},
+            range_anchors,
+            metadata,
+            simulator.parse_keil_map(firmware / "main.map"),
+            simulator.index_listings(firmware),
+            ROOT / "data/W5224A104/MONT_104.bin",
+        )
+        self.assertIn((0xFD1E5C, [0, 1]), range_anchor_patches)
+        self.assertEqual(
+            simulator.hdata_bank_instruction_patch(
+                bytes.fromhex("4e502b"), {0x2B}
+            ),
+            2,
+        )
+        self.assertIsNone(
+            simulator.hdata_bank_instruction_patch(
+                bytes.fromhex("4e502b"), {0x19}
+            )
+        )
+        full_toc_workspace = simulator.metadata_function(metadata, "0xfbad3e")
+        _, full_toc_patches = simulator.automatic_hdata_relocation_patches(
+            {"dependencies": []},
+            full_toc_workspace,
+            metadata,
+            simulator.parse_keil_map(firmware / "main.map"),
+            simulator.index_listings(firmware),
+            ROOT / "data/W5224A104/MONT_104.bin",
+        )
+        self.assertIn((0xF91289, [0]), full_toc_patches)
+
+    def test_hdata_relocation_can_narrow_stock_instruction_candidates(self):
+        function = {
+            "stock_hdata_instruction_addresses": ["0xfecb52", "0xfecebd"],
+            "simulator_hdata_stock_instruction_addresses": ["0xfecebd"],
+        }
+        self.assertEqual(
+            simulator.simulator_hdata_stock_instruction_addresses(function),
+            ["0xfecebd"],
+        )
+
+    def test_write_pipeline_batch_case_uses_safe_runtime_stack(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(overrides["0xfecb50"]["registers"]["SP"], 0x60)
+        self.assertEqual(overrides["0xfecb50"]["instruction_limit"], 400000)
+
+    def test_readiness_probe_case_uses_safe_runtime_stack(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(overrides["0xf892fd"]["registers"]["SP"], 0x60)
+
+    def test_parsed_q_countdown_case_uses_safe_reconstructed_stack(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xf9241f"]["reconstructed_registers"]["SP"], 0x60
+        )
+
+    def test_measurement_pass_case_uses_valid_neutral_profile(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        memory = overrides["0xf94b91"]["memory"]
+        self.assertEqual(memory[0], {"address": "0x00f1bb", "bytes": [0, 0, 8, 0]})
+        self.assertEqual(memory[1]["address"], "0x000800")
+        self.assertEqual(memory[1]["bytes"], [0] * 11)
+
+    def test_profile_generation_cases_allow_their_bounded_hundred_iterations(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xf84a14"]["registers"],
+            {"DR0": 0xFFFFFFFF, "DR4": 0xFFFFFFFF},
+        )
+        self.assertEqual(
+            overrides["0xf84a14"]["observe"]["registers"],
+            {"DR0": 4, "DR4": 4},
+        )
+        self.assertEqual(overrides["0xf9cd5f"]["instruction_limit"], 2500000)
+        self.assertEqual(overrides["0xf9d2d6"]["instruction_limit"], 2000000)
+        self.assertEqual(overrides["0xf9cd5f"]["wall_timeout"], 180)
+        self.assertEqual(overrides["0xf9d2d6"]["wall_timeout"], 180)
+        self.assertEqual(overrides["0xf9e43e"]["registers"]["DR4"], 0xFFFFFFFF)
+        self.assertEqual(overrides["0xf9e0fd"]["instruction_limit"], 500000)
+        self.assertEqual(overrides["0xf9e0fd"]["wall_timeout"], 180)
+
+    def test_controller_record_cases_ignore_verified_compiler_local_tuples(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        reason = (
+            "Reconstructed C251 three-byte automatic packed-MSF tuple; a "
+            "write watchpoint localizes its final byte to IncrementPackedBcdMsf, "
+            "and the normalized dependency trace and persistent outputs match."
+        )
+        expected = {
+            "0xfa0000": "0x000b55",
+            "0xfa05ef": "0x000b46",
+            "0xfa0ab4": "0x000a28",
+            "0xfa1341": "0x000a18",
+            "0xfa1ac5": "0x000b37",
+            "0xfa20f3": "0x000f0a",
+            "0xfa24e9": "0x000b28",
+            "0xfa299d": "0x000678",
+        }
+        for function, address in expected.items():
+            with self.subTest(function=function):
+                self.assertEqual(
+                    overrides[function]["ignored_memory"][0],
+                    {"address": address, "length": 3, "reason": reason},
+                )
+
+    def test_controller_command80_completion_case_uses_one_successful_poll(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        self.assertEqual(
+            overrides["0xfa286a"]["hardware_reads"],
+            [{"space": "RAM", "address": "0x0014da", "values": [1]}],
+        )
+
+    def test_controller_transfer_cases_use_one_immediately_successful_poll(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        expected = {
+            "0xfaaa8c": "0x00a5c0",
+            "0xfaab68": "0x00a5c0",
+            "0xfaac4c": "0x00a5c1",
+            "0xfacc3b": "0x0014da",
+        }
+        for function, address in expected.items():
+            with self.subTest(function=function):
+                self.assertEqual(
+                    overrides[function]["hardware_reads"],
+                    [{"space": "RAM", "address": address, "values": [1]}],
+                )
+
+    def test_drive_probe_cases_use_one_immediately_expired_poll(self):
+        overrides = json.loads(
+            (ROOT / "tests/simulator/cases/generated-overrides.json").read_text()
+        )["overrides"]
+        expected = [{"space": "RAM", "address": "0x001221", "values": [0]}]
+        self.assertEqual(overrides["0xfb00ee"]["hardware_reads"], expected)
+        self.assertEqual(overrides["0xfb1286"]["hardware_reads"], expected)
+
+    def test_wide_direction_move_metadata_records_acc_return(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        function = simulator.metadata_function(metadata, "0xf8877b")
+        self.assertEqual(function["return_storage"], "ACC:1")
+
+    def test_case_validation_rejects_unjustified_ignored_state(self):
+        case = {
+            "id": "bad",
+            "function": "0xfddd27",
+            "mode": "isolated",
+            "termination": "eret",
+            "instruction_limit": 10,
+            "origin": "unit test",
+            "ignored_state": [{"name": "R0"}],
+        }
+        with self.assertRaises(simulator.SimulatorError):
+            simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_rejects_unjustified_ignored_memory(self):
+        case = {
+            "id": "ignored-memory",
+            "function": "0xf80050",
+            "mode": "isolated",
+            "termination": "eret",
+            "instruction_limit": 1,
+            "origin": "unit test",
+            "ignored_memory": [{"address": "0x1000", "length": 1}],
+        }
+        with self.assertRaisesRegex(
+            simulator.SimulatorError, "ignored memory requires"
+        ):
+            simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_rejects_unjustified_ignored_stack(self):
+        case = {
+            "id": "ignored-stack",
+            "function": "0xf80050",
+            "mode": "isolated",
+            "termination": "eret",
+            "instruction_limit": 1,
+            "origin": "unit test",
+            "stop_before_return": True,
+            "ignored_stack": {},
+        }
+        with self.assertRaisesRegex(
+            simulator.SimulatorError, "ignored stack requires a reason"
+        ):
+            simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_rejects_ignored_stack_after_return(self):
+        case = {
+            "id": "ignored-stack",
+            "function": "0xf80050",
+            "mode": "isolated",
+            "termination": "eret",
+            "instruction_limit": 1,
+            "origin": "unit test",
+            "ignored_stack": {"reason": "unit-test reason"},
+        }
+        with self.assertRaisesRegex(
+            simulator.SimulatorError, "only valid when stopping before return"
+        ):
+            simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_accepts_native_shared_tail_return_kind(self):
+        case = {
+            "id": "shared-tail-ret",
+            "function": "0xf94d1d",
+            "mode": "isolated",
+            "termination": "shared-tail",
+            "stock_return_kind": "ret",
+            "instruction_limit": 10,
+            "origin": "unit test",
+        }
+        simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_accepts_reconstructed_nonreturn_checkpoint_symbol(self):
+        case = {
+            "id": "entry-bridge",
+            "function": "0xfee7ed",
+            "mode": "isolated",
+            "termination": "nonreturn",
+            "nonreturn_checkpoint": "0xff2000",
+            "reconstructed_nonreturn_checkpoint_symbol": "InvokeRuntimeHardwareInitializationEntry",
+            "instruction_limit": 10,
+            "origin": "unit test",
+        }
+        simulator.validate_case(case, Path("case.json"))
+
+    def test_case_validation_accepts_reconstructed_nonreturn_checkpoint_offset(self):
+        case = {
+            "id": "in-bank-checkpoint",
+            "function": "0xfbf750",
+            "mode": "isolated",
+            "termination": "nonreturn",
+            "nonreturn_checkpoint": "0xfbf77a",
+            "reconstructed_nonreturn_checkpoint_offset": 53,
+            "instruction_limit": 10,
+            "origin": "unit test",
+        }
+        simulator.validate_case(case, Path("case.json"))
+
+    def test_unexpected_execution_stop_is_a_differential_result(self):
+        case = {
+            "id": "unexpected-stop",
+            "termination": "eret",
+            "instruction_limit": 10,
+            "snapshot_near": False,
+            "snapshot_controller": False,
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            result_path = directory / "result.hex"
+            result = bytearray(
+                simulator.EXECUTION_STACK_STATE_OFFSET + 2 + 0x20
+            )
+            result[0] = 0xA5
+            result[1:5] = (0xFB625B).to_bytes(4, "big")
+            state_offset = 0x20
+            result[state_offset + 4 : state_offset + 8] = (2).to_bytes(4, "big")
+            result_path.write_text(
+                simulator.intel_hex(bytes(result), 0x017F00), encoding="ascii"
+            )
+            decoded = simulator.decode_execution_result(
+                case, result_path, 0xF70004
+            )
+        self.assertEqual(decoded["termination"], "unexpected@0xfb625b")
+        self.assertEqual(decoded["stack"]["boundary"], "unexpected")
+        self.assertIn("DR0", decoded["stop_diagnostics"])
+
+    def test_memory_relocation_materializes_image_pointer_and_stock_mirror(self):
+        case = {
+            "id": "relocated-buffer",
+            "function": "0xfdb4d9",
+            "mode": "isolated",
+            "termination": "ret",
+            "instruction_limit": 10,
+            "origin": "unit test",
+            "memory": [],
+            "hardware_reads": [{"space": "SFR", "address": "0x91", "values": [1, 2]}],
+            "stock_hardware_reads": [
+                {"space": "SFR", "address": "0x91", "values": [1]}
+            ],
+            "memory_relocations": [
+                {
+                    "name": "payload",
+                    "pointer_address": "0x00155a",
+                    "stock_base": "0x160000",
+                    "reconstructed_base": "0x018000",
+                    "offset": 16,
+                    "length": 512,
+                }
+            ],
+        }
+        simulator.validate_case(case, Path("case.json"))
+        stock = simulator.materialize_memory_relocations(case, "stock")
+        reconstructed = simulator.materialize_memory_relocations(
+            case, "reconstructed"
+        )
+        self.assertEqual(stock["memory"][-1]["bytes"], [0, 22, 0, 0])
+        self.assertEqual(reconstructed["memory"][-1]["bytes"], [0, 1, 128, 0])
+        self.assertEqual(
+            stock["_post_execution_copies"],
+            [{"source": 0x160010, "destination": 0x018010, "length": 512}],
+        )
+        self.assertEqual(reconstructed["_post_execution_copies"], [])
+        self.assertEqual(stock["hardware_reads"][0]["values"], [1])
+        self.assertEqual(reconstructed["hardware_reads"][0]["values"], [1, 2])
+
+    def test_code_pointer_memory_normalizes_linked_addresses(self):
+        case = {
+            "id": "code-pointer",
+            "termination": "ret",
+            "instruction_limit": 10,
+            "observe": {"registers": {}, "memory": []},
+            "memory": [],
+            "snapshot_controller": False,
+            "code_pointer_memory": [
+                {"name": "worker", "address": "0x001700"}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            result_path = directory / "result.hex"
+            result = bytearray(
+                simulator.EXECUTION_STACK_STATE_OFFSET + 2 + 0x20
+            )
+            result[0] = 0xA5
+            result_path.write_text(
+                simulator.intel_hex(bytes(result), 0x017F00), encoding="ascii"
+            )
+            before = bytes(0x10000 - 0x420)
+            after = bytearray(before)
+            after[0x1700 - 0x420 : 0x1704 - 0x420] = (0xFE1234).to_bytes(
+                4, "big"
+            )
+            for name, contents in (("before", before), ("after", bytes(after))):
+                (directory / f"ram-{name}-near.hex").write_text(
+                    simulator.intel_hex(contents, 0x420), encoding="ascii"
+                )
+            materialized = simulator.materialize_memory_relocations(
+                case, "reconstructed", {0xFE1234: 0xF81234}
+            )
+            decoded = simulator.decode_execution_result(
+                materialized, result_path, 0
+            )
+        self.assertEqual(decoded["memory"]["worker"], "0xf81234")
+        self.assertEqual(decoded["memory"]["$ram_delta"], {})
+
+    def test_execution_script_mirrors_relocated_stock_result_after_run(self):
+        case = {
+            "id": "relocated-buffer",
+            "termination": "ret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+            "_post_execution_copies": [
+                {"source": 0x160010, "destination": 0x018010, "length": 2}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xFDB4D9,
+                0xFDB786,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        run = "G C:0xfdb4d9,C:0xfdfffc"
+        copy = "_WBYTE(0x018010, _RBYTE(0x160010))"
+        snapshot = 'SAVE "'
+        self.assertIn(run, script)
+        self.assertIn(copy, script)
+        self.assertLess(script.index(run), script.index(copy))
+        self.assertLess(script.index(copy), script.index(snapshot, script.index(copy)))
+
+    def test_execution_script_projects_private_register_results_before_snapshot(self):
+        case = {
+            "id": "private-register-result",
+            "termination": "ret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+            "_result_projections": [
+                {"address": "0x001700", "register": "WR0", "width": 2},
+                {"address": "0x001708", "register": "F0", "width": 1},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xFD91E2,
+                0xFD9204,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        run = "G C:0xfd91e2,C:0xfdfffc"
+        word_projection = "_WWORD(E:0x001700, WR0)"
+        flag_projection = "_WBYTE(E:0x001708, F0)"
+        snapshot = 'SAVE "'
+        self.assertIn(word_projection, script)
+        self.assertIn(flag_projection, script)
+        self.assertLess(script.index(run), script.index(word_projection))
+        self.assertLess(
+            script.index(flag_projection),
+            script.index(snapshot, script.index(flag_projection)),
+        )
+
+    def test_execution_script_initializes_declared_sfr_before_running(self):
+        case = {
+            "id": "sfr-initialization",
+            "termination": "ret",
+            "registers": {},
+            "sfr": [{"address": "0x00a8", "value": 1}],
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80001,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        initialization = "_WBYTE(D:0x00a8, 1)"
+        run = "\nG "
+        self.assertIn(initialization, script)
+        self.assertLess(script.index(initialization), script.index(run))
+
+    def test_execution_script_loads_monitor_only_for_opt_in_case(self):
+        case = {
+            "id": "monitor-contract",
+            "termination": "eret",
+            "load_monitor": True,
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            monitor = directory / "monitor.hex"
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                directory / "result.hex",
+                None,
+                monitor,
+            )
+        load = f'LOAD "{simulator.debugger_path(monitor)}" INCREMENTAL'
+        self.assertIn(load, script)
+        self.assertLess(script.index(load), script.index("RESET"))
+
+    def test_monitor_contract_case_requires_a_monitor_image(self):
+        args = type("Arguments", (), {"monitor_hex": None})()
+        with self.assertRaisesRegex(
+            simulator.SimulatorError, "load_monitor requires --monitor-hex"
+        ):
+            simulator.run_differential_case(
+                args,
+                {"id": "monitor-contract", "load_monitor": True},
+                {},
+                {},
+                {},
+            )
+
+    def test_committed_feasibility_suite_has_an_integrated_command_path(self):
+        cases = simulator.load_cases(
+            ROOT / "tests/simulator/cases/feasibility.json"
+        )
+        integrated = [case for case in cases if case["mode"] == "integrated"]
+        self.assertEqual(len(integrated), 1)
+        self.assertEqual(integrated[0]["function"], "0xfb46ea")
+        self.assertEqual(integrated[0]["evidence"], "scenario-tested")
+
+    def test_shared_tail_return_kind_comes_from_target_body(self):
+        function = {
+            "terminal_flows": ["RAM:f9eded:sjmp:RAM:f9ee1d"],
+        }
+        metadata = {
+            "functions": [
+                {
+                    "body_ranges": ["RAM:f9edef..RAM:f9ee38"],
+                    "return_sites": ["RAM:f9ee38:ret"],
+                }
+            ]
+        }
+        self.assertEqual(
+            simulator.canonical_shared_tail_return_kind(function, metadata),
+            "ret",
+        )
+
+    def test_execution_script_resets_before_declared_state(self):
+        case = {
+            "id": "reset-order",
+            "termination": "eret",
+            "registers": {"R7": 0x5A},
+            "memory": [{"address": "0x001000", "bytes": [0xA5]}],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        self.assertLess(script.index("RESET"), script.index("R7 = 90"))
+        self.assertLess(script.index("RESET"), script.index("_WBYTE(E:0x001000, 165)"))
+        self.assertLess(script.index("BK *"), script.index("R7 = 90"))
+        self.assertIn("MAP 0x020000,0xf6ffff READ WRITE", script)
+        self.assertIn("MAP 0x020000,0xf6ffff READ WRITE", script)
+
+    def test_edata_snapshot_space_tag_is_removed(self):
+        self.assertEqual(
+            simulator.normalize_edata_snapshot({0xF200FAEB: 1, 0x18000: 2}),
+            {0xFAEB: 1, 0x18000: 2},
+        )
+
+    def test_debugger_data_addresses_preserve_controller_space(self):
+        self.assertEqual(simulator.debugger_data_address(0x001000), "E:0x001000")
+        self.assertEqual(simulator.debugger_data_address(0x018080), "0x018080")
+        self.assertEqual(simulator.debugger_data_address(0x2BA5D8), "0x2ba5d8")
+
+    def test_execution_script_installs_dependency_stubs_after_reset(self):
+        case = {
+            "id": "stub-order",
+            "termination": "eret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+                dependency_stubs=[(0xFD66C7, "eret", [])],
+            )
+        stub = "_WBYTE(0xfd66c7, 0xaa)"
+        self.assertIn(stub, script)
+        self.assertLess(script.index("RESET"), script.index(stub))
+
+    def test_stop_before_return_uses_explicit_execution_breakpoint(self):
+        case = {
+            "id": "stop-before-return",
+            "termination": "eret",
+            "stop_before_return": True,
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, expected_stop = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+                return_stops=[0xF8000F],
+            )
+        self.assertIn("BS C:0xf8000f", script)
+        self.assertIn("G C:0xf70000\n", script)
+        self.assertNotIn("G C:0xf70000,C:0xf8000f", script)
+        self.assertEqual(expected_stop, 0xF8000F)
+
+    def test_dependency_trace_script_and_decoder_use_canonical_identity(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xF8A934,
+            "0xf8a934",
+            (("portAddress", "DR0", 4), ("value", "R11", 1)),
+            42,
+            "eret",
+        )
+        case = {
+            "id": "trace",
+            "termination": "eret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                directory / "result.hex",
+                None,
+                None,
+                dependency_stubs=[(0xF8A934, "eret", [])],
+                dependency_tracepoints=[tracepoint],
+                dependency_trace_overlay=directory / "trace.abs",
+                dependency_trace_shims={0xF8A934: 0xF60076},
+            )
+            self.assertIn('_WBYTE(0xf8a934, 0x8a)', script)
+            self.assertIn('_WBYTE(0xf8a937, 0x76)', script)
+            memory = bytearray(24)
+            memory[1] = 1
+            memory[4:6] = (42).to_bytes(2, "big")
+            memory[6] = 2
+            memory[8:12] = (0x018006).to_bytes(4, "big")
+            memory[12:16] = (0xC0).to_bytes(4, "big")
+            trace = directory / "trace.hex"
+            trace.write_text(
+                simulator.intel_hex(bytes(memory), simulator.DEPENDENCY_TRACE_BASE)
+            )
+            decoded = simulator.decode_dependency_trace(trace, [tracepoint])
+        self.assertEqual(
+            decoded,
+            [
+                {
+                    "operation": "call",
+                    "function": "0xf8a934",
+                    "arguments": {"portAddress": 0x018006, "value": 0xC0},
+                }
+            ],
+        )
+
+    def test_dependency_trace_normalizes_relocated_code_argument(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xFEE4C1,
+            "0xfee4c1",
+            (("entryPoint", "DR0", 4),),
+            7,
+            "eret",
+            code_parameters=("entryPoint",),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "trace.hex"
+            memory = bytearray(24)
+            memory[1] = 1
+            memory[4:6] = (7).to_bytes(2, "big")
+            memory[6] = 1
+            memory[8:12] = (0xFE5547).to_bytes(4, "big")
+            trace.write_text(
+                simulator.intel_hex(bytes(memory), simulator.DEPENDENCY_TRACE_BASE)
+            )
+            decoded = simulator.decode_dependency_trace(
+                trace, [tracepoint], {0xFE5547: 0xF853CF}
+            )
+        self.assertEqual(decoded[0]["arguments"]["entryPoint"], 0xF853CF)
+
+    def test_stock_near_dependency_uses_verified_return_site(self):
+        metadata = simulator.load_metadata(
+            ROOT / "tests/simulator/metadata/W5224A104.json"
+        )
+        caller = simulator.metadata_function(metadata, "0xf89367")
+        case = {
+            "id": "near-dependency",
+            "mode": "isolated",
+            "dependencies": ["RAM:f89467"],
+        }
+        stubs, _, tracepoints = simulator.resolve_dependency_stubs(
+            case, caller, metadata, {}, "stock"
+        )
+        self.assertEqual(stubs[0][0:2], (0xF89467, "ret"))
+        self.assertEqual(tracepoints[0].return_thunk, 0xF8949D)
+
+    def test_dependency_stub_supports_multiple_return_registers(self):
+        metadata = {
+            "functions": [
+                {
+                    "canonical_address": "0xf90000",
+                    "symbol": "Caller",
+                    "calls": ["RAM:fd9602"],
+                },
+                {
+                    "canonical_address": "0xfd9602",
+                    "symbol": "Divide",
+                    "parameters": [],
+                    "return_sites": ["RAM:fd9637:eret"],
+                    "reconstructed_return_kinds": ["eret"],
+                },
+            ]
+        }
+        case = {
+            "id": "multi-return",
+            "mode": "isolated",
+            "dependencies": [
+                {
+                    "function": "RAM:fd9602",
+                    "returns": [
+                        {"register": "DR4", "value": 3},
+                        {"register": "DR0", "value": 1},
+                    ],
+                }
+            ],
+        }
+        stubs, _, tracepoints = simulator.resolve_dependency_stubs(
+            case, metadata["functions"][0], metadata, {}, "stock"
+        )
+        self.assertEqual(stubs[0][2], [("DR4", 3), ("DR0", 1)])
+        self.assertEqual(
+            tracepoints[0].assignments, (("DR4", 3), ("DR0", 1))
+        )
+
+    def test_shared_tail_dependency_with_known_return_kind_is_not_nonreturn(self):
+        metadata = {
+            "functions": [
+                {
+                    "canonical_address": "0xf90000",
+                    "symbol": "Caller",
+                    "calls": ["RAM:fd0000"],
+                },
+                {
+                    "canonical_address": "0xfd0000",
+                    "symbol": "SharedTailHelper",
+                    "calls": [],
+                    "memory_references": ["SFR:00e0"],
+                    "return_sites": [],
+                    "reconstructed_return_kinds": ["eret"],
+                    "return_storage": "WR6:2",
+                },
+            ]
+        }
+        selected = simulator.hardware_coupled_dependencies(
+            metadata["functions"][0], metadata
+        )
+        self.assertEqual(
+            selected,
+            [
+                {
+                    "function": "RAM:fd0000",
+                    "return": {"register": "WR6", "value": 0},
+                }
+            ],
+        )
+
+    def test_pure_shared_tail_helper_is_not_a_hardware_dependency(self):
+        metadata = {
+            "functions": [
+                {
+                    "canonical_address": "0xf90000",
+                    "symbol": "Caller",
+                    "calls": ["RAM:fd0000"],
+                },
+                {
+                    "canonical_address": "0xfd0000",
+                    "symbol": "PureSharedTailHelper",
+                    "calls": [],
+                    "memory_references": [],
+                    "return_sites": [],
+                    "reconstructed_return_kinds": ["eret"],
+                    "return_storage": "DR4:4",
+                },
+            ]
+        }
+        self.assertEqual(
+            simulator.hardware_coupled_dependencies(
+                metadata["functions"][0], metadata
+            ),
+            [],
+        )
+
+    def test_reconstructed_parameters_are_recovered_from_listing_prologue(self):
+        listing_text = """\
+; FUNCTION Example? (BEGIN)
+000000 7CAB           MOV      R10,R11
+;---- Variable 'value' assigned to Register 'R10' ----
+000002 7F01           MOV      DR0,DR4
+;---- Variable 'port_address' assigned to Register 'DR0' ----
+000004 AA             ERET
+; FUNCTION Example? (END)
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "example.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            parameters = simulator.dependency_parameters(
+                {
+                    "symbol": "Example",
+                    "parameters": [
+                        "portAddress:uint:DR0:4",
+                        "value:uchar:ACC:1",
+                    ],
+                },
+                "reconstructed",
+                listing,
+                "Example",
+            )
+        self.assertEqual(
+            parameters,
+            (("portAddress", "DR4", 4), ("value", "R11", 1)),
+        )
+
+    def test_trace_scratch_is_outside_firmware_ram_comparison(self):
+        self.assertEqual(simulator.DEPENDENCY_TRACE_SCRATCH_FIRST, 0x45D0)
+        self.assertEqual(simulator.DEPENDENCY_TRACE_SCRATCH_LAST, 0x45E3)
+        self.assertEqual(simulator.DEPENDENCY_TRACE_BASE, 0x012000)
+        self.assertEqual(simulator.DEPENDENCY_TRACE_MAX_RECORDS, 1023)
+
+    def test_function_listing_prefers_canonical_source_over_duplicate_helper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "alpha.lst").write_text(
+                "; FUNCTION ReadBigEndianU16 (BEGIN)\n"
+                "000000 22 RET\n"
+                "; FUNCTION ReadBigEndianU16 (END)\n",
+                encoding="ascii",
+            )
+            expected = directory / "memory.lst"
+            expected.write_text(
+                "; FUNCTION ReadBigEndianU16? (BEGIN)\n"
+                "000010 AA ERET\n"
+                "; FUNCTION ReadBigEndianU16? (END)\n",
+                encoding="ascii",
+            )
+            listings = simulator.index_listings(directory)
+            selected = simulator.function_listing(
+                {"source": "src/platform/memory.c"},
+                "ReadBigEndianU16",
+                listings,
+            )
+        self.assertEqual(selected, expected)
+
+    def test_a251_listing_functions_are_indexed_and_parsed(self):
+        listing_text = """\
+                         1     PUBLIC ResumeCoroutine0?
+                         2     PUBLIC ResumeCoroutine1?
+000000                   20     ResumeCoroutine0?:
+000000 7AFF115A          21         MOV EDATA 115AH,SPX
+000004 7EFF115E          22         MOV SPX,EDATA 115EH
+000008 DA3B              23         POP DR12
+00000A AA                24         ERET
+00000B                   26     ResumeCoroutine1?:
+00000B AA                27         ERET
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "coroutine_context_switch.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            indexed = simulator.index_listings(Path(temporary))
+            rows = simulator.listing_function_rows(listing, "ResumeCoroutine0")
+            instructions = simulator.parse_listing_instructions(
+                listing, "ResumeCoroutine0"
+            )
+            parameter_registers = simulator.parse_listing_parameter_registers(
+                listing, "ResumeCoroutine0", {"entrypoint"}
+            )
+        self.assertEqual(indexed["ResumeCoroutine0"], listing)
+        self.assertEqual(indexed["ResumeCoroutine1"], listing)
+        self.assertEqual(
+            rows,
+            [
+                (0, bytes.fromhex("7aff115a")),
+                (4, bytes.fromhex("7eff115e")),
+                (8, bytes.fromhex("da3b")),
+                (10, bytes.fromhex("aa")),
+            ],
+        )
+        self.assertEqual(
+            instructions,
+            [(0, "mov"), (4, "mov"), (8, "pop"), (10, "eret")],
+        )
+        self.assertEqual(parameter_registers, {})
+
+    def test_a251_function_block_retains_internal_labels(self):
+        listing_text = """\
+                         1     PUBLIC CopyWords?
+                         2     PUBLIC Following?
+000000                    3     CopyWords?:
+000000 8000               4         SJMP CopyWordsTest
+000002                    5     CopyWordsBody:
+000002 00                 6         NOP
+000003                    7     CopyWordsTest:
+000003 AA                 8         ERET
+000004                    9     Following?:
+000004 AA                10         ERET
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            listing = Path(temporary) / "native.lst"
+            listing.write_text(listing_text, encoding="ascii")
+            rows = simulator.listing_function_rows(listing, "CopyWords")
+            indexed = simulator.index_listings(Path(temporary))
+        self.assertEqual(
+            rows,
+            [
+                (0, bytes.fromhex("8000")),
+                (2, bytes.fromhex("00")),
+                (3, bytes.fromhex("aa")),
+            ],
+        )
+        self.assertNotIn("CopyWordsBody", indexed)
+        self.assertNotIn("CopyWordsTest", indexed)
+
+    def test_compare_normalizes_relocated_function_local_stops(self):
+        stock = {"termination": "unexpected@0xfee788"}
+        reconstructed = {"termination": "unexpected@0xfd9ed2"}
+        self.assertEqual(
+            simulator.compare_results(
+                stock,
+                reconstructed,
+                stock_function_range=(0xFEE780, 0xFEE789),
+                reconstructed_function_range=(0xFD9ECA, 0xFD9ED3),
+            ),
+            [],
+        )
+
+    def test_hardware_read_signal_supplies_ordered_values(self):
+        case = {
+            "id": "hardware-read",
+            "hardware_reads": [
+                {
+                    "space": "SFR",
+                    "address": "0xd7",
+                    "width": 1,
+                    "values": [0x11, 0],
+                }
+            ],
+        }
+        definitions, starts = simulator.render_hardware_read_signals(case)
+        script = "\n".join(definitions)
+        self.assertIn("rwatch(D:0xd7)", script)
+        self.assertIn("if (_RBYTE(0x017003) == 0)", script)
+        self.assertIn("_WBYTE(D:0xd7, 17)", script)
+        self.assertIn("_WBYTE(D:0xd7, 0)", script)
+        self.assertIn("_WBYTE(0x017004 + event * 8, 3)", script)
+        self.assertEqual(starts, ["PlextorHardwareRead0()"])
+
+    def test_hardware_write_signal_records_cpu_value(self):
+        case = {
+            "id": "hardware-write",
+            "hardware_writes": [
+                {"space": "CONTROLLER", "address": "0x018080", "value": 0x55}
+            ],
+        }
+        definitions, starts = simulator.render_hardware_write_signals(case, 0)
+        script = "\n".join(definitions)
+        self.assertIn("wwatch(0x018080)", script)
+        self.assertIn("if (_RBYTE(0x017003) == 0)", script)
+        self.assertIn("value = _RBYTE(0x018080)", script)
+        self.assertIn("_WBYTE(0x017004 + event * 8, 2)", script)
+        self.assertEqual(starts, ["PlextorHardwareWrite0()"])
+
+    def test_low_controller_address_uses_extended_data_debugger_space(self):
+        self.assertEqual(
+            simulator.hardware_debugger_address("CONTROLLER", 0x008015),
+            "E:0x008015",
+        )
+
+    def test_reconstructed_hardware_difference_is_reported_as_a_mismatch(self):
+        case = {
+            "id": "hardware-difference",
+            "hardware_reads": [],
+            "hardware_writes": [
+                {
+                    "space": "SFR",
+                    "address": "0x00e1",
+                    "values": [0, 128, 0],
+                }
+            ],
+        }
+        trace = bytearray(12)
+        trace[0] = 1
+        trace[4] = 2
+        trace[5] = 1
+        trace[9] = 0xE1
+        trace[10] = 1
+        trace[11] = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "hardware.hex"
+            path.write_text(
+                simulator.intel_hex(bytes(trace), simulator.HARDWARE_TRACE_BASE)
+            )
+            with self.assertRaises(simulator.SimulatorError):
+                simulator.decode_hardware_trace(case, path)
+            actual = simulator.decode_hardware_trace(
+                case, path, validate_contract=False
+            )
+        self.assertEqual(len(actual), 1)
+        self.assertEqual(actual[0]["address"], "0x0000e1")
+
+    def test_ram_read_signal_supplies_asynchronous_completion(self):
+        case = {
+            "id": "ram-read",
+            "hardware_reads": [
+                {"space": "RAM", "address": "0x0014da", "values": [1]}
+            ],
+        }
+        definitions, starts = simulator.render_hardware_read_signals(case)
+        script = "\n".join(definitions)
+        self.assertIn("rwatch(E:0x0014da)", script)
+        self.assertIn("_WBYTE(E:0x0014da, 1)", script)
+        self.assertIn("_WBYTE(0x017005 + event * 8, 3)", script)
+        self.assertEqual(starts, ["PlextorHardwareRead0()"])
+
+    def test_trace_patch_does_not_overwrite_dependency_plus_four(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xF89467,
+            "0xf89467",
+            (),
+            1,
+            "ret",
+            return_thunk=0xF8949D,
+        )
+        case = {
+            "id": "safe-ret-thunk",
+            "termination": "eret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                directory / "result.hex",
+                None,
+                None,
+                dependency_stubs=[(0xF89467, "ret", [])],
+                dependency_tracepoints=[tracepoint],
+                dependency_trace_overlay=directory / "trace.abs",
+                dependency_trace_shims={0xF89467: 0xF60076},
+            )
+        self.assertNotIn("_WBYTE(0xf8946b, 0x22)", script)
+
+    def test_dependency_trace_shim_applies_declared_near_memory_writes(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xFEE534,
+            "0xfee534",
+            (),
+            1,
+            "eret",
+            memory_writes=((0x120A, 0xFF), (0x1220, 0x00)),
+            bit_writes=((0x09, 1),),
+        )
+        assembly, _ = simulator.render_dependency_trace_assembly([tracepoint])
+        self.assertIn("MOV R15,#0FFH", assembly)
+        self.assertIn("MOV EDATA 0120AH,R15", assembly)
+        self.assertIn("MOV R15,#000H", assembly)
+        self.assertIn("MOV EDATA 01220H,R15", assembly)
+        self.assertIn("SETB 009H", assembly)
+
+    def test_dependency_trace_shim_captures_b_through_scratch_register(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xFBA4F7,
+            "0xfba4f7",
+            (("firstPointIndex", "B", 1),),
+            1,
+            "eret",
+        )
+        assembly, _ = simulator.render_dependency_trace_assembly([tracepoint])
+        self.assertIn("MOV R15,B\n    MOV EDATA 045D7H,R15", assembly)
+        self.assertNotIn("MOV EDATA 045D7H,B", assembly)
+
+    def test_dependency_trace_shim_does_not_save_unused_b_register(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xFEE534,
+            "0xfee534",
+            (),
+            1,
+            "eret",
+        )
+        assembly, _ = simulator.render_dependency_trace_assembly([tracepoint])
+        self.assertNotIn("PUSH B", assembly)
+        self.assertNotIn("POP B", assembly)
+
+    def test_dependency_trace_shim_captures_memory_backed_parameter(self):
+        tracepoint = simulator.DependencyTracepoint(
+            0xF849DE,
+            "0xf849de",
+            (("exclusiveEnd", "XDATA@0x011a8b", 1),),
+            1,
+            "eret",
+        )
+        assembly, _ = simulator.render_dependency_trace_assembly([tracepoint])
+        self.assertIn(
+            "MOV DPTR,#0011A8BH\n    MOVX A,@DPTR\n    MOV EDATA 045D7H,A",
+            assembly,
+        )
+
+    def test_ret_stack_frame_is_installed_after_reset(self):
+        case = {
+            "id": "ret-frame",
+            "termination": "ret",
+            "registers": {},
+            "memory": [],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF84CB1,
+                0xF84D24,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        self.assertLess(script.index("RESET"), script.index("SP = 0x60"))
+        self.assertLess(script.index("RESET"), script.index("_WBYTE(I:0x61"))
+
+    def test_internal_bit_initialization_uses_bit_addressable_data_byte(self):
+        case = {
+            "id": "initial-bit",
+            "termination": "eret",
+            "registers": {},
+            "memory": [],
+            "bits": [{"address": "0x0009", "value": 1}],
+            "observe": {"registers": {}, "memory": []},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script, _ = simulator.render_execution_script(
+                case,
+                0xF80000,
+                0xF80010,
+                Path(temporary) / "result.hex",
+                None,
+                None,
+            )
+        self.assertIn(
+            "_WBYTE(I:0x21, _RBYTE(I:0x21) | 0x02)", script
+        )
+
+    def test_generated_project_does_not_restore_debugger_state(self):
+        base = Path(
+            "/home/hbrych/.wine/drive_c/Keil_v5/C251/Examples/Blinky/BLINKY.uvproj"
+        )
+        if not base.is_file():
+            self.skipTest("Keil example project is not installed")
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            project = directory / "run.uvproj"
+            simulator.create_project(base, project, directory / "run.ini", None)
+            root = ET.parse(project).getroot()
+        selected = root.find("./Targets/Target")
+        self.assertIsNotNone(selected)
+        for name in (
+            "RestoreBreakpoints",
+            "RestoreWatchpoints",
+            "RestoreMemoryDisplay",
+            "RestoreFunctions",
+            "RestoreToolbox",
+        ):
+            self.assertEqual(
+                selected.findtext(f"./TargetOption/DebugOption/Simulator/{name}"),
+                "0",
+            )
+
+    def test_comparison_normalizes_image_and_program_counter(self):
+        stock = {
+            "termination": "eret",
+            "registers": {"R11": 3},
+            "flags": {"C": 0},
+            "stack": [],
+            "memory": {},
+            "trace": [{"operation": "read", "address": "0x18080", "value": 4, "pc": "0xf80000", "image": "stock"}],
+        }
+        reconstructed = json.loads(json.dumps(stock))
+        reconstructed["trace"][0]["pc"] = "0xfa0000"
+        reconstructed["trace"][0]["image"] = "reconstructed"
+        self.assertEqual(simulator.compare_results(stock, reconstructed), [])
+
+    def test_comparison_detects_every_observable_category(self):
+        base = {
+            "termination": "ret",
+            "registers": {"R7": 1},
+            "flags": {"C": 0},
+            "stack": [1, 2],
+            "memory": {"0x001000": 3},
+            "trace": [{"operation": "write", "address": "0x018080", "value": 4}],
+        }
+        for key in ("termination", "registers", "flags", "stack", "memory", "trace"):
+            changed = json.loads(json.dumps(base))
+            if key == "trace":
+                changed[key][0]["value"] = 5
+            else:
+                changed[key] = "different"
+            differences = simulator.compare_results(base, changed)
+            self.assertTrue(any(item.startswith(key + ":") for item in differences), key)
+
+    def test_comparison_can_ignore_pre_return_stack_only(self):
+        stock = {
+            "termination": "eret",
+            "registers": {"R11": 3},
+            "flags": {},
+            "stack": {"balanced": False, "residual": 1},
+            "memory": {},
+            "trace": [],
+        }
+        reconstructed = json.loads(json.dumps(stock))
+        reconstructed["stack"]["residual"] = 2
+        self.assertTrue(
+            any(
+                difference.startswith("stack:")
+                for difference in simulator.compare_results(stock, reconstructed)
+            )
+        )
+        case = {
+            "ignored_stack": {
+                "reason": "Compiler-specific pre-return frames are not outputs."
+            }
+        }
+        self.assertEqual(
+            simulator.compare_results(stock, reconstructed, case), []
+        )
+
+    def test_code_patch_resolves_symbol_relative_jump(self):
+        case = {
+            "id": "relative-jump",
+            "code_patches": [
+                {
+                    "reconstructed_symbol": "Worker",
+                    "reconstructed_offset": 4,
+                    "reconstructed_jump_offset": 0x123,
+                    "reason": "unit test",
+                }
+            ],
+        }
+        self.assertEqual(
+            simulator.resolve_code_patches(
+                case, {"Worker": 0xF80000}, "reconstructed"
+            ),
+            [(0xF80004, [0x8A, 0xF8, 0x01, 0x23])],
+        )
+
+    def test_comparison_detects_hardware_access_order(self):
+        stock = {
+            "termination": "eret",
+            "registers": {},
+            "flags": {},
+            "stack": [],
+            "memory": {},
+            "trace": [],
+            "hardware_trace": [
+                {"operation": "read", "space": "SFR", "address": "0x0091", "value": 1},
+                {"operation": "read", "space": "SFR", "address": "0x0091", "value": 2},
+            ],
+        }
+        reconstructed = json.loads(json.dumps(stock))
+        reconstructed["hardware_trace"].reverse()
+        differences = simulator.compare_results(stock, reconstructed)
+        self.assertTrue(
+            any(item.startswith("hardware_trace:") for item in differences)
+        )
+
+    def test_prepare_writes_pinned_image_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            stock = directory / "stock.bin"
+            monitor = directory / "monitor.bin"
+            stock.write_bytes(b"\xff" * 0x80000)
+            monitor.write_bytes(b"\0" * 0x10000)
+            args = type("Arguments", (), {"stock": stock, "monitor": monitor, "output": directory / "out"})()
+            self.assertEqual(simulator.command_prepare(args), 0)
+            provenance = json.loads((args.output / "images.json").read_text())
+            self.assertEqual(provenance["stock"]["sha256"], simulator.sha256(stock))
+
+    def test_prepare_needs_only_the_stock_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            stock = directory / "stock.bin"
+            stock.write_bytes(b"\xff" * 0x80000)
+            args = type(
+                "Arguments",
+                (),
+                {"stock": stock, "monitor": None, "output": directory / "out"},
+            )()
+            self.assertEqual(simulator.command_prepare(args), 0)
+            provenance = json.loads((args.output / "images.json").read_text())
+            self.assertIsNone(provenance["monitor"])
+            self.assertFalse((args.output / "monitor.hex").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

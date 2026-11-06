@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_MEDIA_STATE6_CALIBRATION_THRESHOLD_H
+#define PLEXTOR_MEDIA_STATE6_CALIBRATION_THRESHOLD_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION DeriveMediaState6CalibrationThresholdState(void);
+
+#endif

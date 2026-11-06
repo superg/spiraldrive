@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_CONTROLLER_MEASUREMENT_TRANSFORM_H
+#define PLEXTOR_CONTROLLER_MEASUREMENT_TRANSFORM_H
+
+#include "mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION TransformControllerMeasurementSeries04To05(void);
+
+#endif

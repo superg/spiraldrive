@@ -1,0 +1,8 @@
+#ifndef PLEXTOR_SCSI_READ_SUBCHANNEL_IDENTIFICATION_ACQUISITION_H
+#define PLEXTOR_SCSI_READ_SUBCHANNEL_IDENTIFICATION_ACQUISITION_H
+
+#include "../platform/mcs251.h"
+
+void PLEXTOR_NEAR_FUNCTION AcquireReadSubChannelIdentificationForTrack(u8 track_number);
+
+#endif

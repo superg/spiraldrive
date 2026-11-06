@@ -1,0 +1,18 @@
+#ifndef PLEXTOR_DISC_CONTROL_STATE_INITIALIZATION_H
+#define PLEXTOR_DISC_CONTROL_STATE_INITIALIZATION_H
+
+#include "../platform/mcs251.h"
+
+#if defined(PLEXTOR_HOST_TEST)
+enum DiscControlInitializationEvent
+{
+    DISC_CONTROL_RESET_MEASUREMENT_CAPTURE = 1,
+    DISC_CONTROL_DIVIDE_ADJUSTED_BYTE,
+    DISC_CONTROL_TEST_INDEXED_STATE,
+    DISC_CONTROL_DECODE_SIGNED_OFFSET
+};
+#endif
+
+void InitializeDiscControlStateFromConfiguration(void);
+
+#endif

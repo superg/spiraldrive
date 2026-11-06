@@ -1,0 +1,6 @@
+#ifndef PLEXTOR_SYNTHETIC_TRACK_TABLE_H
+#define PLEXTOR_SYNTHETIC_TRACK_TABLE_H
+
+void BuildSyntheticTrackTableAndAcquireLeadInLeadOutSequences(void);
+
+#endif

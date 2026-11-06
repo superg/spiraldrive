@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "debounced-p1-fb01c2-asserted",
+      "function": "0xfb01c2",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            32
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 1
+        }
+      }
+    },
+    {
+      "id": "debounced-p1-fb01c2-released",
+      "function": "0xfb01c2",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            255
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 0
+        }
+      }
+    },
+    {
+      "id": "debounced-p1-fb0664-asserted",
+      "function": "0xfb0664",
+      "mode": "isolated",
+      "termination": "ret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            64
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 1
+        }
+      }
+    },
+    {
+      "id": "debounced-p1-fb0664-released",
+      "function": "0xfb0664",
+      "mode": "isolated",
+      "termination": "ret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            255
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 0
+        }
+      }
+    },
+    {
+      "id": "debounced-p1-fb01d0-asserted",
+      "function": "0xfb01d0",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            128
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            0
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 1
+        }
+      }
+    },
+    {
+      "id": "debounced-p1-fb01d0-released",
+      "function": "0xfb01d0",
+      "mode": "isolated",
+      "termination": "eret",
+      "instruction_limit": 1000,
+      "origin": "Stock 1.04 instructions read RAM:0011ed; drive-control RAM:001300 is independent.",
+      "evidence": "scenario-tested",
+      "seed": 0,
+      "registers": {},
+      "sfr": [],
+      "bits": [],
+      "observe": {
+        "registers": {
+          "R11": 1
+        },
+        "memory": []
+      },
+      "memory": [
+        {
+          "address": "0x0011ed",
+          "bytes": [
+            0
+          ]
+        },
+        {
+          "address": "0x001300",
+          "bytes": [
+            255
+          ]
+        }
+      ],
+      "hardware_reads": [],
+      "hardware_writes": [],
+      "dependencies": [],
+      "code_patches": [],
+      "expected_observations": {
+        "registers": {
+          "R11": 0
+        }
+      }
+    }
+  ]
+}

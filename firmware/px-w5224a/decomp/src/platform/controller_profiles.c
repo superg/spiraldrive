@@ -1,0 +1,2777 @@
+#include "controller_mapping.h"
+#include "controller_parameters.h"
+#include "controller_profile_selector.h"
+#include "firmware_memory.h"
+
+#define PLEXTOR_BINDING_SECTION 1
+#include "bindings/platform/controller_profiles_bindings.h"
+#undef PLEXTOR_BINDING_SECTION
+
+#define PLEXTOR_BINDING_SECTION 2
+#include "bindings/platform/controller_profiles_bindings.h"
+#undef PLEXTOR_BINDING_SECTION
+typedef struct
+{
+    u16 selector;
+    u16 value;
+} ControllerProfilePair;
+
+#define PLEXTOR_BINDING_SECTION 3
+#include "bindings/platform/controller_profiles_bindings.h"
+#undef PLEXTOR_BINDING_SECTION
+
+/* RAM:f9dec1 */
+void PLEXTOR_NEAR_FUNCTION ApplyControllerRegisterProfileSelector(u8 profile_selector)
+{
+    PROGRAM_CONTROLLER_PROFILE_SELECTOR(profile_selector);
+}
+
+/* RAM:f9ecad */
+u16 PLEXTOR_NEAR_FUNCTION ComputeControllerProfileScaledWord(float profile_value)
+{
+    u16 scale_word = READ_CONTROLLER_PROFILE_WORD(FW_NEAR_UNKNOWN_F9FA);
+    float base;
+    float offset;
+
+    if(scale_word == 0u)
+        return 0u;
+
+    base = (float)scale_word;
+    base = base / 100.0f;
+    base = base * (float)READ_CONTROLLER_PROFILE_WORD(FW_NEAR_UNKNOWN_0FFE);
+    base = base / 32.0f;
+    offset = base * 16.0f;
+    base = base * profile_value;
+    base = base - offset;
+    return (u16)(s32)base;
+}
+
+/* RAM:f9f426 */
+void PLEXTOR_NEAR_FUNCTION ApplyFixedControllerRegisterProfileForOperatingCode(u8 operating_code)
+{
+    fw_addr_t payload_address = 0ul;
+    fw_addr_t auxiliary_address = 0ul;
+    u8 value;
+    u8 index;
+
+    CLEAR_FIXED_PROFILE_EA();
+    value = (u8)(FirmwareReadNear8(FW_NEAR_UNKNOWN_0FCA) | 8u);
+    FirmwareWriteNear8(FW_NEAR_UNKNOWN_0FCA, value);
+    FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_018002, value);
+
+    switch(operating_code)
+    {
+    case 0x14u:
+        payload_address = FW_NEAR_UNKNOWN_E75C;
+        break;
+    case 0x18u:
+        payload_address = FW_NEAR_UNKNOWN_E77E;
+        break;
+    case 0x20u:
+        payload_address = FW_NEAR_UNKNOWN_E7A0;
+        break;
+    case 0x28u:
+        payload_address = FW_NEAR_UNKNOWN_E7C2;
+        break;
+    case 0x34u:
+        payload_address = FW_NEAR_UNKNOWN_E7E4;
+        break;
+    default:
+        break;
+    }
+
+    if(payload_address != 0ul)
+    {
+        auxiliary_address = payload_address + 0x1cul;
+        FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_0180AA, FirmwareRead8(auxiliary_address));
+        FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_0180A9, FirmwareRead8(auxiliary_address + 1ul));
+        FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_0180A6, FirmwareRead8(auxiliary_address + 2ul));
+        FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_0180A7, FirmwareRead8(auxiliary_address + 3ul));
+        FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_0180A8, FirmwareRead8(auxiliary_address + 4ul));
+        for(index = 0u; index != 0x1cu; ++index)
+            FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_018081 + index, FirmwareRead8(payload_address + index));
+    }
+
+    value = (u8)(FirmwareReadNear8(FW_NEAR_UNKNOWN_0FCA) & 0xe7u);
+    FirmwareWriteNear8(FW_NEAR_UNKNOWN_0FCA, value);
+    FirmwareWriteController8(FW_CONTROLLER_UNKNOWN_018002, value);
+    SET_FIXED_PROFILE_EA();
+    SET_FIXED_PROFILE_EC();
+    SET_FIXED_PROFILE_A9_BIT2();
+}
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80564. */
+static const ControllerProfilePair kChannel0_F80564[] = {
+    { 0x0309u, 0x0000u },
+    { 0x0204u, 0x0000u },
+    { 0x020du, 0x0000u },
+    { 0x022eu, 0x0000u },
+    { 0x0302u, 0x16e9u },
+    { 0x0300u, 0xe97eu },
+    { 0x0301u, 0x63a0u },
+    { 0x0303u, 0x0000u },
+    { 0x0304u, 0x0000u },
+    { 0x030du, 0x304fu },
+    { 0x030cu, 0xcff3u },
+    { 0x030bu, 0x7fd1u },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x33ceu },
+    { 0x0360u, 0xce02u },
+    { 0x0361u, 0x7f17u },
+    { 0x0308u, 0x7fffu },
+    { 0x0307u, 0x0000u },
+    { 0x0306u, 0x0000u },
+    { 0x032du, 0x784cu },
+    { 0x032bu, 0x784cu },
+    { 0x032cu, 0x076au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x030au, 0x5a9eu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0x0312u, 0x60ecu },
+    { 0x0310u, 0x9f14u },
+    { 0x0311u, 0x41dau },
+    { 0x0313u, 0x0000u },
+    { 0x0314u, 0x0000u },
+    { 0x0372u, 0x71c8u },
+    { 0x0370u, 0x92fbu },
+    { 0x0371u, 0x7d77u },
+    { 0x0318u, 0x7fffu },
+    { 0x0317u, 0x8136u },
+    { 0x0316u, 0x7f44u },
+    { 0x0315u, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80610. */
+static const ControllerProfilePair kChannel0_F80610[] = {
+    { 0x0302u, 0x16d4u },
+    { 0x0300u, 0xe96au },
+    { 0x0301u, 0x63a0u },
+    { 0x0303u, 0x0000u },
+    { 0x0304u, 0x0000u },
+    { 0x030du, 0x3339u },
+    { 0x030cu, 0xcd24u },
+    { 0x030bu, 0x7fd1u },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x376bu },
+    { 0x0360u, 0xcba7u },
+    { 0x0361u, 0x7ee9u },
+    { 0x0308u, 0x7fffu },
+    { 0x0307u, 0x0000u },
+    { 0x0306u, 0x0000u },
+    { 0x032du, 0x784cu },
+    { 0x032bu, 0x784cu },
+    { 0x032cu, 0x076au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80678. */
+static const ControllerProfilePair kChannel0_F80678[] = {
+    { 0x0302u, 0x16d4u },
+    { 0x0300u, 0xe96au },
+    { 0x0301u, 0x63a0u },
+    { 0x0303u, 0x0000u },
+    { 0x0304u, 0x0000u },
+    { 0x030du, 0x3339u },
+    { 0x030cu, 0xcd24u },
+    { 0x030bu, 0x7fd1u },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x376bu },
+    { 0x0360u, 0xcba7u },
+    { 0x0361u, 0x7ee9u },
+    { 0x0308u, 0x7fffu },
+    { 0x0307u, 0x0000u },
+    { 0x0306u, 0x0000u },
+    { 0x032du, 0x784cu },
+    { 0x032bu, 0x784cu },
+    { 0x032cu, 0x076au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f806e0. */
+static const ControllerProfilePair kChannel0_F806E0[] = {
+    { 0x0302u, 0x25d2u },
+    { 0x0300u, 0xdafbu },
+    { 0x0301u, 0x52ecu },
+    { 0x0303u, 0x0000u },
+    { 0x0304u, 0x0000u },
+    { 0x030du, 0x2407u },
+    { 0x030cu, 0xdc9bu },
+    { 0x030bu, 0x7faeu },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x376bu },
+    { 0x0360u, 0xcba7u },
+    { 0x0361u, 0x7ee9u },
+    { 0x0308u, 0x7fffu },
+    { 0x0307u, 0x0000u },
+    { 0x0306u, 0x0000u },
+    { 0x032du, 0x784cu },
+    { 0x032bu, 0x784cu },
+    { 0x032cu, 0x076au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80748. */
+static const ControllerProfilePair kChannel0_F80748[] = {
+    { 0x0302u, 0x0f25u },
+    { 0x0300u, 0x0f25u },
+    { 0x0301u, 0x076au },
+    { 0x0303u, 0x816cu },
+    { 0x0304u, 0x63a0u },
+    { 0x030du, 0x185cu },
+    { 0x030cu, 0x185cu },
+    { 0x030bu, 0x594du },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x2c12u },
+    { 0x0360u, 0xd78bu },
+    { 0x0361u, 0x7e30u },
+    { 0x0308u, 0x3db5u },
+    { 0x0307u, 0xc362u },
+    { 0x0306u, 0x7f74u },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f807b0. */
+static const ControllerProfilePair kChannel0_F807B0[] = {
+    { 0x0302u, 0x1311u },
+    { 0x0300u, 0x1311u },
+    { 0x0301u, 0x076au },
+    { 0x0303u, 0x816cu },
+    { 0x0304u, 0x63a0u },
+    { 0x030du, 0x1b55u },
+    { 0x030cu, 0x1b55u },
+    { 0x030bu, 0x594du },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x392cu },
+    { 0x0360u, 0xcb84u },
+    { 0x0361u, 0x7da7u },
+    { 0x0308u, 0x499eu },
+    { 0x0307u, 0xb832u },
+    { 0x0306u, 0x7f17u },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x2413u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0x0312u, 0x06b5u },
+    { 0x0310u, 0x06b5u },
+    { 0x0311u, 0x3cc4u },
+    { 0x0313u, 0x816eu },
+    { 0x0314u, 0x6b11u },
+    { 0x0372u, 0x1ad8u },
+    { 0x0370u, 0xe80du },
+    { 0x0371u, 0x7e8du },
+    { 0x0318u, 0x0f5fu },
+    { 0x0317u, 0x0f5fu },
+    { 0x0316u, 0x594du },
+    { 0x0315u, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80848. */
+static const ControllerProfilePair kChannel0_F80848[] = {
+    { 0x0302u, 0x1e38u },
+    { 0x0300u, 0x1e38u },
+    { 0x0301u, 0x076au },
+    { 0x0303u, 0x815fu },
+    { 0x0304u, 0x6013u },
+    { 0x030du, 0x3689u },
+    { 0x030cu, 0x3689u },
+    { 0x030bu, 0x594du },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x428au },
+    { 0x0360u, 0xc4a3u },
+    { 0x0361u, 0x7c67u },
+    { 0x0308u, 0x40deu },
+    { 0x0307u, 0xc1d9u },
+    { 0x0306u, 0x7ea4u },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x287au },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0x0312u, 0x0aa0u },
+    { 0x0310u, 0x0aa0u },
+    { 0x0311u, 0x1580u },
+    { 0x0313u, 0x807du },
+    { 0x0314u, 0x6efau },
+    { 0x0372u, 0x0da1u },
+    { 0x0370u, 0xf42fu },
+    { 0x0371u, 0x7f17u },
+    { 0x0318u, 0x1eabu },
+    { 0x0317u, 0x1eabu },
+    { 0x0316u, 0x594du },
+    { 0x0315u, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f808e0. */
+static const ControllerProfilePair kChannel0_F808E0[] = {
+    { 0x0302u, 0x2a53u },
+    { 0x0300u, 0x2a53u },
+    { 0x0301u, 0x3cc4u },
+    { 0x0303u, 0x8247u },
+    { 0x0304u, 0x26dau },
+    { 0x030du, 0x326eu },
+    { 0x030cu, 0xcfdau },
+    { 0x030bu, 0x7f17u },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x7fffu },
+    { 0x0360u, 0x0000u },
+    { 0x0361u, 0x0000u },
+    { 0x0308u, 0x7fffu },
+    { 0x0307u, 0x0000u },
+    { 0x0306u, 0x0000u },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x1b0du },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80948. */
+static const ControllerProfilePair kChannel0_F80948[] = {
+    { 0x0302u, 0x1564u },
+    { 0x0300u, 0x1564u },
+    { 0x0301u, 0x076au },
+    { 0x0303u, 0x816cu },
+    { 0x0304u, 0x63a0u },
+    { 0x030du, 0x2269u },
+    { 0x030cu, 0x2269u },
+    { 0x030bu, 0x594du },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x3b8bu },
+    { 0x0360u, 0xcba1u },
+    { 0x0361u, 0x7c67u },
+    { 0x0308u, 0x4d91u },
+    { 0x0307u, 0xb525u },
+    { 0x0306u, 0x7ea4u },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x287au },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0x0312u, 0x06b5u },
+    { 0x0310u, 0x06b5u },
+    { 0x0311u, 0x3cc4u },
+    { 0x0313u, 0x816eu },
+    { 0x0314u, 0x6b11u },
+    { 0x0372u, 0x1ad8u },
+    { 0x0370u, 0xe80du },
+    { 0x0371u, 0x7e8du },
+    { 0x0318u, 0x0f5fu },
+    { 0x0317u, 0x0f5fu },
+    { 0x0316u, 0x594du },
+    { 0x0315u, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80a78. */
+static const ControllerProfilePair kChannel0_F80A78[] = {
+    { 0x0302u, 0x2915u },
+    { 0x0300u, 0x2915u },
+    { 0x0301u, 0xdc0eu },
+    { 0x0303u, 0x807au },
+    { 0x0304u, 0x6013u },
+    { 0x030du, 0x269cu },
+    { 0x030cu, 0x269cu },
+    { 0x030bu, 0x594du },
+    { 0x0368u, 0x0b7eu },
+    { 0x0366u, 0xf525u },
+    { 0x0367u, 0x7f5du },
+    { 0x0362u, 0x631du },
+    { 0x0360u, 0xa793u },
+    { 0x0361u, 0x7aa5u },
+    { 0x0308u, 0x4004u },
+    { 0x0307u, 0xc1c9u },
+    { 0x0306u, 0x7edeu },
+    { 0x032du, 0x7fffu },
+    { 0x032bu, 0x7fffu },
+    { 0x032cu, 0xd19au },
+    { 0x0329u, 0x2027u },
+    { 0x0305u, 0x7fffu },
+    { 0x032au, 0x7fffu },
+    { 0x030eu, 0x7fffu },
+    { 0x0312u, 0x06b5u },
+    { 0x0310u, 0x06b5u },
+    { 0x0311u, 0x3cc4u },
+    { 0x0313u, 0x807du },
+    { 0x0314u, 0x6efau },
+    { 0x0372u, 0x1ad8u },
+    { 0x0370u, 0xe80du },
+    { 0x0371u, 0x7e8du },
+    { 0x0318u, 0x0f5fu },
+    { 0x0317u, 0x0f5fu },
+    { 0x0316u, 0x594du },
+    { 0x0315u, 0x7fffu },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel0ProfileTablesDisabled[13] = {
+    kChannel0_F80564,
+    kChannel0_F80610,
+    kChannel0_F80610,
+    kChannel0_F80678,
+    kChannel0_F806E0,
+    kChannel0_F806E0,
+    kChannel0_F806E0,
+    kChannel0_F806E0,
+    kChannel0_F80748,
+    kChannel0_F80748,
+    kChannel0_F807B0,
+    kChannel0_F80848,
+    kChannel0_F80848,
+};
+
+static const ControllerProfilePair *const kChannel0ProfileTablesEnabled[13] = {
+    kChannel0_F80564,
+    kChannel0_F80610,
+    kChannel0_F80610,
+    kChannel0_F80678,
+    kChannel0_F806E0,
+    kChannel0_F808E0,
+    kChannel0_F808E0,
+    kChannel0_F80948,
+    kChannel0_F80A78,
+    kChannel0_F80A78,
+    kChannel0_F80A78,
+    kChannel0_F80A78,
+    kChannel0_F80A78,
+};
+
+/* RAM:f8a9fc */
+void LoadControllerChannel0OperatingProfile(u8 operating_code)
+{
+    u8 profile_index = MapOperatingCodeToProfileIndex(operating_code);
+    const ControllerProfilePair *records;
+    u8 update_channel_value = 0;
+
+    if(FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u)
+    {
+        records = kChannel0ProfileTablesDisabled[profile_index];
+        if(operating_code < 0x19u)
+            update_channel_value = 1u;
+    }
+    else
+    {
+        records = kChannel0ProfileTablesEnabled[profile_index];
+        if(operating_code < 0x10u)
+            update_channel_value = 1u;
+    }
+
+    if(FirmwareReadNear8(FW_NEAR_UNKNOWN_F98C) != 0u && update_channel_value != 0u)
+        SetControllerChannel0ValueForOperatingCode(operating_code);
+
+    while(records->selector != 0xffffu)
+    {
+        if(records->selector == 0xf000u)
+            WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180A1, (u8)records->value);
+        else
+            SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180AC, 1u);
+    while(WaitControllerPortReadyAndReadByte(FW_CONTROLLER_UNKNOWN_0180AC) != 0u)
+    {
+    }
+}
+/* Fixed records from /validated/MONT_104.bin RAM:f80b10. */
+static const ControllerProfilePair kChannel1_F80B10[] = {
+    { 0x0319u, 0x0000u },
+    { 0x025au, 0x0000u },
+    { 0x021du, 0x0000u },
+    { 0x022fu, 0x0000u },
+    { 0x024au, 0x0100u },
+    { 0x0322u, 0x2a1du },
+    { 0x0320u, 0xd75cu },
+    { 0x0321u, 0x4fdfu },
+    { 0x0323u, 0x0000u },
+    { 0x0324u, 0x0000u },
+    { 0x031du, 0x26e3u },
+    { 0x031cu, 0xda79u },
+    { 0x031bu, 0x7f51u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x1449u },
+    { 0x0325u, 0x7fffu },
+    { 0x031au, 0x5a9eu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0x0332u, 0x6af8u },
+    { 0x0330u, 0x0757u },
+    { 0x0331u, 0x0000u },
+    { 0x0333u, 0x0892u },
+    { 0x0334u, 0x80cdu },
+    { 0x0375u, 0x7fecu },
+    { 0x0373u, 0x80e9u },
+    { 0x0374u, 0x7fa2u },
+    { 0x0338u, 0x48e3u },
+    { 0x0337u, 0x1d00u },
+    { 0x0336u, 0x0000u },
+    { 0x0335u, 0x7213u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80bc4. */
+static const ControllerProfilePair kChannel1_F80BC4[] = {
+    { 0x0322u, 0x2a1du },
+    { 0x0320u, 0xd75cu },
+    { 0x0321u, 0x4fdfu },
+    { 0x0323u, 0x0000u },
+    { 0x0324u, 0x0000u },
+    { 0x031du, 0x26e3u },
+    { 0x031cu, 0xda79u },
+    { 0x031bu, 0x7f51u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x0000u },
+    { 0x033cu, 0x0000u },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x16c3u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80c30. */
+static const ControllerProfilePair kChannel1_F80C30[] = {
+    { 0x0322u, 0x2a1du },
+    { 0x0320u, 0xd75cu },
+    { 0x0321u, 0x4fdfu },
+    { 0x0323u, 0x0000u },
+    { 0x0324u, 0x0000u },
+    { 0x031du, 0x26e3u },
+    { 0x031cu, 0xda79u },
+    { 0x031bu, 0x7f51u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x1449u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80c9c. */
+static const ControllerProfilePair kChannel1_F80C9C[] = {
+    { 0x0322u, 0x3605u },
+    { 0x0320u, 0xcbdfu },
+    { 0x0321u, 0x3cc4u },
+    { 0x0323u, 0x0000u },
+    { 0x0324u, 0x0000u },
+    { 0x031du, 0x22d7u },
+    { 0x031cu, 0xdefau },
+    { 0x031bu, 0x7f17u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x198au },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80d08. */
+static const ControllerProfilePair kChannel1_F80D08[] = {
+    { 0x0322u, 0x3c90u },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x84dfu },
+    { 0x0324u, 0x2efau },
+    { 0x031du, 0x3371u },
+    { 0x031cu, 0xcf69u },
+    { 0x031bu, 0x7edeu },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x0e5du },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80d74. */
+static const ControllerProfilePair kChannel1_F80D74[] = {
+    { 0x0322u, 0x47fbu },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x8724u },
+    { 0x0324u, 0x2311u },
+    { 0x031du, 0x21b1u },
+    { 0x031cu, 0xe1bau },
+    { 0x031bu, 0x7ea4u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x1327u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80de0. */
+static const ControllerProfilePair kChannel1_F80DE0[] = {
+    { 0x0322u, 0x47fbu },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x87e3u },
+    { 0x0324u, 0x18adu },
+    { 0x031du, 0x3320u },
+    { 0x031cu, 0xd28du },
+    { 0x031bu, 0x7dbeu },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x198au },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80e4c. */
+static const ControllerProfilePair kChannel1_F80E4C[] = {
+    { 0x0322u, 0x47fbu },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x86a6u },
+    { 0x0324u, 0x26dau },
+    { 0x031du, 0x21b1u },
+    { 0x031cu, 0xe1bau },
+    { 0x031bu, 0x7ea4u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x1f10u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80eb8. */
+static const ControllerProfilePair kChannel1_F80EB8[] = {
+    { 0x0322u, 0x3460u },
+    { 0x0320u, 0x3460u },
+    { 0x0321u, 0xc5bau },
+    { 0x0323u, 0x86a6u },
+    { 0x0324u, 0x26dau },
+    { 0x031du, 0x21b1u },
+    { 0x031cu, 0xe1bau },
+    { 0x031bu, 0x7ea4u },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x7fffu },
+    { 0x0363u, 0x0000u },
+    { 0x0364u, 0x0000u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x174bu },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0041u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80f24. */
+static const ControllerProfilePair kChannel1_F80F24[] = {
+    { 0x0322u, 0x392du },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x8476u },
+    { 0x0324u, 0x359cu },
+    { 0x031du, 0x1b55u },
+    { 0x031cu, 0x1b55u },
+    { 0x031bu, 0x594du },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x2531u },
+    { 0x0363u, 0xe843u },
+    { 0x0364u, 0x7aa5u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x16c3u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+/* Fixed records from /validated/MONT_104.bin RAM:f80f90. */
+static const ControllerProfilePair kChannel1_F80F90[] = {
+    { 0x0322u, 0x47fbu },
+    { 0x0320u, 0x0000u },
+    { 0x0321u, 0x0000u },
+    { 0x0323u, 0x8481u },
+    { 0x0324u, 0x2efau },
+    { 0x031du, 0x1b55u },
+    { 0x031cu, 0x1b55u },
+    { 0x031bu, 0x594du },
+    { 0x0378u, 0x7fffu },
+    { 0x0376u, 0x0000u },
+    { 0x0377u, 0x0000u },
+    { 0x0365u, 0x3adbu },
+    { 0x0363u, 0xdca3u },
+    { 0x0364u, 0x7582u },
+    { 0x0328u, 0x7fffu },
+    { 0x0327u, 0x0000u },
+    { 0x0326u, 0x0000u },
+    { 0x033du, 0x7fffu },
+    { 0x033bu, 0x7fffu },
+    { 0x033cu, 0xd19au },
+    { 0x031eu, 0x7fffu },
+    { 0x0339u, 0x1449u },
+    { 0x0325u, 0x7fffu },
+    { 0x033au, 0x4027u },
+    { 0x035eu, 0x4027u },
+    { 0xf000u, 0x0042u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel1ProfileTablesDisabled[13] = {
+    kChannel1_F80B10,
+    kChannel1_F80BC4,
+    kChannel1_F80BC4,
+    kChannel1_F80C30,
+    kChannel1_F80C9C,
+    kChannel1_F80C9C,
+    kChannel1_F80C9C,
+    kChannel1_F80C9C,
+    kChannel1_F80D08,
+    kChannel1_F80D08,
+    kChannel1_F80D74,
+    kChannel1_F80DE0,
+    kChannel1_F80DE0,
+};
+
+static const ControllerProfilePair *const kChannel1ProfileTablesEnabled[13] = {
+    kChannel1_F80B10,
+    kChannel1_F80BC4,
+    kChannel1_F80BC4,
+    kChannel1_F80C30,
+    kChannel1_F80C9C,
+    kChannel1_F80E4C,
+    kChannel1_F80E4C,
+    kChannel1_F80EB8,
+    kChannel1_F80F24,
+    kChannel1_F80F24,
+    kChannel1_F80F24,
+    kChannel1_F80F24,
+    kChannel1_F80F90,
+};
+
+/* RAM:f8aaf8 */
+void LoadControllerChannel1OperatingProfile(u8 operating_code)
+{
+    u8 profile_index = MapOperatingCodeToProfileIndex(operating_code);
+    const ControllerProfilePair *records = FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u ? kChannel1ProfileTablesDisabled[profile_index] : kChannel1ProfileTablesEnabled[profile_index];
+
+    while(records->selector != 0xffffu)
+    {
+        if(records->selector == 0xf000u)
+            WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180A3, (u8)records->value);
+        else
+            SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180AC, 2u);
+    while(WaitControllerPortReadyAndReadByte(FW_CONTROLLER_UNKNOWN_0180AC) != 0u)
+    {
+    }
+    SubmitControllerWordPair(0u, 0x022fu);
+}
+static const ControllerProfilePair kChannel2_F80FFC[] = {
+    { 0x0229u, 0x0000u },
+    { 0x0348u, 0x023du },
+    { 0x0347u, 0x023du },
+    { 0x0346u, 0x7b85u },
+    { 0x038fu, 0x0a67u },
+    { 0x038eu, 0xf756u },
+    { 0x038du, 0x7e41u },
+    { 0x034cu, 0x7fffu },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0x039fu, 0x6af8u },
+    { 0x039eu, 0x0757u },
+    { 0x039du, 0x0000u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81048[] = {
+    { 0x0348u, 0x023du },
+    { 0x0347u, 0x023du },
+    { 0x0346u, 0x7b85u },
+    { 0x038fu, 0x0a67u },
+    { 0x038eu, 0xf756u },
+    { 0x038du, 0x7e41u },
+    { 0x034cu, 0x7fffu },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81084[] = {
+    { 0x0348u, 0x023du },
+    { 0x0347u, 0x023du },
+    { 0x0346u, 0x7b85u },
+    { 0x038fu, 0x0a67u },
+    { 0x038eu, 0xf756u },
+    { 0x038du, 0x7e41u },
+    { 0x034cu, 0x7fffu },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F810C0[] = {
+    { 0x0348u, 0x023du },
+    { 0x0347u, 0x023du },
+    { 0x0346u, 0x7b85u },
+    { 0x038fu, 0x0a67u },
+    { 0x038eu, 0xf756u },
+    { 0x038du, 0x7e41u },
+    { 0x034cu, 0x7fffu },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F810FC[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x5a9eu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81138[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x5a9eu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81174[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x5a9eu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F811B0[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F811EC[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x2000u },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81228[] = {
+    { 0x0348u, 0x00aeu },
+    { 0x0347u, 0x00aeu },
+    { 0x0346u, 0x7ea4u },
+    { 0x038fu, 0x06c7u },
+    { 0x038eu, 0xfcadu },
+    { 0x038du, 0x7c8cu },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel2_F81264[] = {
+    { 0x0348u, 0x0074u },
+    { 0x0347u, 0x0074u },
+    { 0x0346u, 0x7f8bu },
+    { 0x038fu, 0x05a9u },
+    { 0x038eu, 0xfd39u },
+    { 0x038du, 0x7d1du },
+    { 0x034cu, 0x101du },
+    { 0x034bu, 0x0000u },
+    { 0x034au, 0x0000u },
+    { 0x034fu, 0x0883u },
+    { 0x034du, 0x0883u },
+    { 0x034eu, 0x6efau },
+    { 0x0349u, 0x7fffu },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel2ProfileTablesDisabled[13] = {
+    kChannel2_F80FFC,
+    kChannel2_F81048,
+    kChannel2_F81048,
+    kChannel2_F81084,
+    kChannel2_F810C0,
+    kChannel2_F810C0,
+    kChannel2_F810C0,
+    kChannel2_F810C0,
+    kChannel2_F810FC,
+    kChannel2_F810FC,
+    kChannel2_F81138,
+    kChannel2_F81174,
+    kChannel2_F81174,
+};
+
+static const ControllerProfilePair *const kChannel2ProfileTablesEnabled[13] = {
+    kChannel2_F80FFC,
+    kChannel2_F81048,
+    kChannel2_F81048,
+    kChannel2_F81084,
+    kChannel2_F810C0,
+    kChannel2_F811B0,
+    kChannel2_F811B0,
+    kChannel2_F811EC,
+    kChannel2_F81228,
+    kChannel2_F81228,
+    kChannel2_F81228,
+    kChannel2_F81228,
+    kChannel2_F81264,
+};
+
+/* RAM:f8abdc */
+void LoadControllerChannel2OperatingProfile(u8 operating_code)
+{
+    const ControllerProfilePair *records =
+        (FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u ? kChannel2ProfileTablesDisabled : kChannel2ProfileTablesEnabled)[MapOperatingCodeToProfileIndex(operating_code)];
+    while(records->selector != 0xffffu)
+    {
+        if(records->selector == 0xf000u)
+            WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180A5, (u8)records->value);
+        else
+            SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180AC, 4u);
+    while(WaitControllerPortReadyAndReadByte(FW_CONTROLLER_UNKNOWN_0180AC) != 0u)
+    {
+    }
+}
+static const ControllerProfilePair kChannel3_F812A0[] = {
+    { 0x0230u, 0xec00u },
+    { 0x0381u, 0x0388u },
+    { 0x0380u, 0x0388u },
+    { 0x0382u, 0x7588u },
+    { 0x0383u, 0x3fffu },
+    { 0x036eu, 0x00a0u },
+    { 0x0384u, 0x0065u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x1428u },
+    { 0x036bu, 0x1428u },
+    { 0x036cu, 0x72d5u },
+    { 0x0389u, 0x24a8u },
+    { 0x0388u, 0x24a8u },
+    { 0x038au, 0x751du },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0065u },
+    { 0x037eu, 0xe000u },
+    { 0x0399u, 0x2000u },
+    { 0x0398u, 0x2000u },
+    { 0x039au, 0x751du },
+    { 0x039bu, 0x7fffu },
+    { 0x039cu, 0x0055u },
+    { 0x0391u, 0x7fffu },
+    { 0x0390u, 0x0000u },
+    { 0x0392u, 0x0000u },
+    { 0x0393u, 0x0000u },
+    { 0x0394u, 0x0000u },
+    { 0x0397u, 0x7fffu },
+    { 0x0395u, 0x0000u },
+    { 0x0396u, 0x0000u },
+    { 0x03a1u, 0x1011u },
+    { 0x03a0u, 0x1011u },
+    { 0x03a2u, 0x6bd5u },
+    { 0x03a3u, 0x8001u },
+    { 0x03a4u, 0x0000u },
+    { 0x03a7u, 0x0f00u },
+    { 0x03a9u, 0x1206u },
+    { 0x03a8u, 0x1206u },
+    { 0x03aau, 0x70e5u },
+    { 0x03abu, 0x8001u },
+    { 0x03acu, 0xfff0u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8135C[] = {
+    { 0x0230u, 0xec00u },
+    { 0x0381u, 0x0ae9u },
+    { 0x0380u, 0x0ae9u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x4fffu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0055u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x1215u },
+    { 0x036bu, 0x1215u },
+    { 0x036cu, 0x7588u },
+    { 0x0389u, 0x2e21u },
+    { 0x0388u, 0x2e21u },
+    { 0x038au, 0x7a03u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xfcb2u },
+    { 0x037eu, 0xfff0u },
+    { 0x0399u, 0x08e7u },
+    { 0x0398u, 0x08e7u },
+    { 0x039au, 0x7303u },
+    { 0x039bu, 0x47fau },
+    { 0x039cu, 0x019cu },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F813CC[] = {
+    { 0x0230u, 0xfc00u },
+    { 0x0381u, 0x1529u },
+    { 0x0380u, 0x1529u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x6fffu },
+    { 0x036eu, 0x0800u },
+    { 0x0384u, 0x0055u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2905u },
+    { 0x036bu, 0x2905u },
+    { 0x036cu, 0x7588u },
+    { 0x0389u, 0x1821u },
+    { 0x0388u, 0x1821u },
+    { 0x038au, 0x7388u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf3a2u },
+    { 0x037eu, 0xff80u },
+    { 0x0399u, 0x12e7u },
+    { 0x0398u, 0x12e7u },
+    { 0x039au, 0x7788u },
+    { 0x039bu, 0x47fau },
+    { 0x039cu, 0x019cu },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8143C[] = {
+    { 0x0230u, 0xf400u },
+    { 0x0381u, 0x0a29u },
+    { 0x0380u, 0x0a29u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x6fffu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0045u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2015u },
+    { 0x036bu, 0x2015u },
+    { 0x036cu, 0x72d5u },
+    { 0x0389u, 0x1821u },
+    { 0x0388u, 0x1821u },
+    { 0x038au, 0x7403u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf5a2u },
+    { 0x037eu, 0xffafu },
+    { 0x0399u, 0x7fffu },
+    { 0x0398u, 0x0000u },
+    { 0x039au, 0x0000u },
+    { 0x039bu, 0x0000u },
+    { 0x039cu, 0x0000u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F814AC[] = {
+    { 0x0230u, 0xf400u },
+    { 0x0381u, 0x1129u },
+    { 0x0380u, 0x1129u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0075u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x1a15u },
+    { 0x036bu, 0x1a15u },
+    { 0x036cu, 0x72d5u },
+    { 0x0389u, 0x00bau },
+    { 0x0388u, 0x00bau },
+    { 0x038au, 0x7e89u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf996u },
+    { 0x037eu, 0xfbf4u },
+    { 0x0399u, 0x7fffu },
+    { 0x0398u, 0x0000u },
+    { 0x039au, 0x0000u },
+    { 0x039bu, 0x0000u },
+    { 0x039cu, 0x0000u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8151C[] = {
+    { 0x0230u, 0xf800u },
+    { 0x0381u, 0x1129u },
+    { 0x0380u, 0x1129u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x0075u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3215u },
+    { 0x036bu, 0x3215u },
+    { 0x036cu, 0x72d5u },
+    { 0x0389u, 0x00bau },
+    { 0x0388u, 0x00bau },
+    { 0x038au, 0x7e89u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf996u },
+    { 0x037eu, 0xfbf4u },
+    { 0x0399u, 0x7fffu },
+    { 0x0398u, 0x0000u },
+    { 0x039au, 0x0000u },
+    { 0x039bu, 0x0000u },
+    { 0x039cu, 0x0000u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8158C[] = {
+    { 0x0230u, 0xf400u },
+    { 0x0381u, 0x1129u },
+    { 0x0380u, 0x1129u },
+    { 0x0382u, 0x7203u },
+    { 0x0383u, 0x6fffu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0075u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3615u },
+    { 0x036bu, 0x3615u },
+    { 0x036cu, 0x77d5u },
+    { 0x0389u, 0x00bau },
+    { 0x0388u, 0x00bau },
+    { 0x038au, 0x7e89u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf956u },
+    { 0x037eu, 0xf8f4u },
+    { 0x0399u, 0x7fffu },
+    { 0x0398u, 0x0000u },
+    { 0x039au, 0x0000u },
+    { 0x039bu, 0x0000u },
+    { 0x039cu, 0x0000u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81ACC[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x03c9u },
+    { 0x0380u, 0x03c9u },
+    { 0x0382u, 0x6bd5u },
+    { 0x0383u, 0x3fffu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0040u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x221cu },
+    { 0x036bu, 0x221cu },
+    { 0x036cu, 0x75d5u },
+    { 0x0389u, 0x1fe0u },
+    { 0x0388u, 0x1fe0u },
+    { 0x038au, 0x75d5u },
+    { 0x038bu, 0x9ca5u },
+    { 0x038cu, 0xfaddu },
+    { 0x037eu, 0xfc6fu },
+    { 0x0399u, 0x0417u },
+    { 0x0398u, 0x0417u },
+    { 0x039au, 0x787du },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfee0u },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81B3C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x03c9u },
+    { 0x0380u, 0x03c9u },
+    { 0x0382u, 0x7303u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x0080u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x1111u },
+    { 0x036bu, 0x1111u },
+    { 0x036cu, 0x7588u },
+    { 0x0389u, 0x1454u },
+    { 0x0388u, 0x1454u },
+    { 0x038au, 0x7898u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xfe52u },
+    { 0x037eu, 0xfe84u },
+    { 0x0399u, 0x0417u },
+    { 0x0398u, 0x0417u },
+    { 0x039au, 0x787du },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfee0u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81BAC[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0400u },
+    { 0x0380u, 0x0400u },
+    { 0x0382u, 0x7303u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x0080u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x141fu },
+    { 0x036bu, 0x141fu },
+    { 0x036cu, 0x7588u },
+    { 0x0389u, 0x1454u },
+    { 0x0388u, 0x1454u },
+    { 0x038au, 0x7698u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xf6f2u },
+    { 0x037eu, 0xfef4u },
+    { 0x0399u, 0x0bf7u },
+    { 0x0398u, 0x0bf7u },
+    { 0x039au, 0x70e5u },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfef0u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81C1C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0a00u },
+    { 0x0380u, 0x0a00u },
+    { 0x0382u, 0x7a31u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x00a0u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0502u },
+    { 0x036bu, 0x0502u },
+    { 0x036cu, 0x7a31u },
+    { 0x0389u, 0x0bf7u },
+    { 0x0388u, 0x0bf7u },
+    { 0x038au, 0x70e5u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xfef0u },
+    { 0x037eu, 0xffbeu },
+    { 0x0399u, 0x0bf7u },
+    { 0x0398u, 0x0bf7u },
+    { 0x039au, 0x70e5u },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfef0u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81C8C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0a00u },
+    { 0x0380u, 0x0a00u },
+    { 0x0382u, 0x7a31u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x00a0u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0502u },
+    { 0x036bu, 0x0502u },
+    { 0x036cu, 0x7a31u },
+    { 0x0389u, 0x0bf7u },
+    { 0x0388u, 0x0bf7u },
+    { 0x038au, 0x70e5u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xfef0u },
+    { 0x037eu, 0xffbeu },
+    { 0x0399u, 0x0bf7u },
+    { 0x0398u, 0x0bf7u },
+    { 0x039au, 0x70e5u },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfef0u },
+    { 0xf000u, 0x0005u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81CFC[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0a00u },
+    { 0x0380u, 0x0a00u },
+    { 0x0382u, 0x7a31u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x0a00u },
+    { 0x0384u, 0x00a0u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0502u },
+    { 0x036bu, 0x0502u },
+    { 0x036cu, 0x7a31u },
+    { 0x0389u, 0x0bf7u },
+    { 0x0388u, 0x0bf7u },
+    { 0x038au, 0x70e5u },
+    { 0x038bu, 0x8001u },
+    { 0x038cu, 0xfef0u },
+    { 0x037eu, 0xffbeu },
+    { 0x0399u, 0x0bf7u },
+    { 0x0398u, 0x0bf7u },
+    { 0x039au, 0x70e5u },
+    { 0x039bu, 0x8001u },
+    { 0x039cu, 0xfef0u },
+    { 0xf000u, 0x0005u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F815FC[] = {
+    { 0x0230u, 0xec00u },
+    { 0x0381u, 0x1473u },
+    { 0x0380u, 0x1473u },
+    { 0x0382u, 0x7345u },
+    { 0x0383u, 0x7000u },
+    { 0x036eu, 0x0450u },
+    { 0x0384u, 0x0070u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0a31u },
+    { 0x036bu, 0x0a31u },
+    { 0x036cu, 0x76d5u },
+    { 0x0389u, 0x0f00u },
+    { 0x0388u, 0x0f00u },
+    { 0x038au, 0x76d5u },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0033u },
+    { 0x037eu, 0xe1a0u },
+    { 0x0399u, 0x1e73u },
+    { 0x0398u, 0x1e73u },
+    { 0x039au, 0x7245u },
+    { 0x039bu, 0x7f00u },
+    { 0x039cu, 0x0085u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8166C[] = {
+    { 0x0230u, 0xf400u },
+    { 0x0381u, 0x0283u },
+    { 0x0380u, 0x0283u },
+    { 0x0382u, 0x7000u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x1000u },
+    { 0x0384u, 0x0030u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0e31u },
+    { 0x036bu, 0x0e31u },
+    { 0x036cu, 0x76d5u },
+    { 0x0389u, 0x1085u },
+    { 0x0388u, 0x1085u },
+    { 0x038au, 0x76d5u },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0050u },
+    { 0x037eu, 0xe400u },
+    { 0x0399u, 0x0f00u },
+    { 0x0398u, 0x0f00u },
+    { 0x039au, 0x761du },
+    { 0x039bu, 0x5fffu },
+    { 0x039cu, 0x0045u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F816DC[] = {
+    { 0x0230u, 0xf900u },
+    { 0x0381u, 0x1473u },
+    { 0x0380u, 0x1473u },
+    { 0x0382u, 0x7345u },
+    { 0x0383u, 0x7a00u },
+    { 0x036eu, 0x0450u },
+    { 0x0384u, 0x0070u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3021u },
+    { 0x036bu, 0x3021u },
+    { 0x036cu, 0x73a0u },
+    { 0x0389u, 0x1e73u },
+    { 0x0388u, 0x1e73u },
+    { 0x038au, 0x71a5u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0085u },
+    { 0x037eu, 0xe4a0u },
+    { 0x0399u, 0x1e73u },
+    { 0x0398u, 0x1e73u },
+    { 0x039au, 0x7245u },
+    { 0x039bu, 0x7f00u },
+    { 0x039cu, 0x0085u },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8174C[] = {
+    { 0x0230u, 0xf500u },
+    { 0x0381u, 0x1073u },
+    { 0x0380u, 0x1073u },
+    { 0x0382u, 0x72a5u },
+    { 0x0383u, 0x7a00u },
+    { 0x036eu, 0x0450u },
+    { 0x0384u, 0x0070u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2221u },
+    { 0x036bu, 0x2221u },
+    { 0x036cu, 0x72a0u },
+    { 0x0389u, 0x2473u },
+    { 0x0388u, 0x2473u },
+    { 0x038au, 0x70a5u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0075u },
+    { 0x037eu, 0xe8a0u },
+    { 0x0399u, 0x2073u },
+    { 0x0398u, 0x2073u },
+    { 0x039au, 0x7235u },
+    { 0x039bu, 0x7f00u },
+    { 0x039cu, 0x0085u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F817BC[] = {
+    { 0x0230u, 0xf500u },
+    { 0x0381u, 0x1073u },
+    { 0x0380u, 0x1073u },
+    { 0x0382u, 0x72a5u },
+    { 0x0383u, 0x7a00u },
+    { 0x036eu, 0x0450u },
+    { 0x0384u, 0x0070u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2021u },
+    { 0x036bu, 0x2021u },
+    { 0x036cu, 0x71a0u },
+    { 0x0389u, 0x2473u },
+    { 0x0388u, 0x2473u },
+    { 0x038au, 0x70a5u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0075u },
+    { 0x037eu, 0xeba0u },
+    { 0x0399u, 0x2073u },
+    { 0x0398u, 0x2073u },
+    { 0x039au, 0x7245u },
+    { 0x039bu, 0x7f00u },
+    { 0x039cu, 0x0075u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8182C[] = {
+    { 0x0230u, 0xf500u },
+    { 0x0381u, 0x1100u },
+    { 0x0380u, 0x1100u },
+    { 0x0382u, 0x7345u },
+    { 0x0383u, 0x7f00u },
+    { 0x036eu, 0x0750u },
+    { 0x0384u, 0x0085u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2b21u },
+    { 0x036bu, 0x2b21u },
+    { 0x036cu, 0x7145u },
+    { 0x0389u, 0x2673u },
+    { 0x0388u, 0x2673u },
+    { 0x038au, 0x7145u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0084u },
+    { 0x037eu, 0xe9a0u },
+    { 0x0399u, 0x2273u },
+    { 0x0398u, 0x2273u },
+    { 0x039au, 0x7045u },
+    { 0x039bu, 0x7f00u },
+    { 0x039cu, 0x0085u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F8197C[] = {
+    { 0x0230u, 0xf900u },
+    { 0x0381u, 0x2200u },
+    { 0x0380u, 0x2200u },
+    { 0x0382u, 0x7285u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x0750u },
+    { 0x0384u, 0x0085u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3021u },
+    { 0x036bu, 0x3021u },
+    { 0x036cu, 0x7345u },
+    { 0x0389u, 0x2220u },
+    { 0x0388u, 0x2220u },
+    { 0x038au, 0x7285u },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0085u },
+    { 0x037eu, 0xffffu },
+    { 0x0399u, 0x1a00u },
+    { 0x0398u, 0x1a00u },
+    { 0x039au, 0x7285u },
+    { 0x039bu, 0x7a00u },
+    { 0x039cu, 0x0075u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81A5C[] = {
+    { 0x0230u, 0xf900u },
+    { 0x0381u, 0x1000u },
+    { 0x0380u, 0x1000u },
+    { 0x0382u, 0x7400u },
+    { 0x0383u, 0x16e0u },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0074u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2f90u },
+    { 0x036bu, 0x2f90u },
+    { 0x036cu, 0x76f5u },
+    { 0x0389u, 0x2220u },
+    { 0x0388u, 0x2220u },
+    { 0x038au, 0x7285u },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0085u },
+    { 0x037eu, 0xffffu },
+    { 0x0399u, 0x1a00u },
+    { 0x0398u, 0x1a00u },
+    { 0x039au, 0x7285u },
+    { 0x039bu, 0x7a00u },
+    { 0x039cu, 0x0075u },
+    { 0xf000u, 0x0004u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81D6C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0220u },
+    { 0x0380u, 0x0220u },
+    { 0x0382u, 0x7088u },
+    { 0x0383u, 0x6ffbu },
+    { 0x036eu, 0x0cccu },
+    { 0x0384u, 0x0010u },
+    { 0x0387u, 0x7d7au },
+    { 0x0385u, 0x87a6u },
+    { 0x0386u, 0x73d6u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2ef1u },
+    { 0x036bu, 0x2ef1u },
+    { 0x036cu, 0x5a9eu },
+    { 0x0389u, 0x1ef1u },
+    { 0x0388u, 0x1ef1u },
+    { 0x038au, 0x5a9eu },
+    { 0x038bu, 0x6fffu },
+    { 0x038cu, 0x0067u },
+    { 0x037eu, 0xf700u },
+    { 0x0399u, 0x0884u },
+    { 0x0398u, 0x0884u },
+    { 0x039au, 0x5a9eu },
+    { 0x039bu, 0x5ffbu },
+    { 0x039cu, 0x0500u },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81DDC[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x030eu },
+    { 0x0380u, 0x030eu },
+    { 0x0382u, 0x6bd5u },
+    { 0x0383u, 0x7fffu },
+    { 0x036eu, 0x101du },
+    { 0x0384u, 0x0067u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x0e21u },
+    { 0x036bu, 0x0e21u },
+    { 0x036cu, 0x6bd5u },
+    { 0x0389u, 0x0e21u },
+    { 0x0388u, 0x0e21u },
+    { 0x038au, 0x6bd5u },
+    { 0x038bu, 0x7fffu },
+    { 0x038cu, 0x0020u },
+    { 0x037eu, 0xe7edu },
+    { 0x0399u, 0x129au },
+    { 0x0398u, 0x129au },
+    { 0x039au, 0x6bd5u },
+    { 0x039bu, 0x7fffu },
+    { 0x039cu, 0x0020u },
+    { 0xf000u, 0x0001u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81E4C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0400u },
+    { 0x0380u, 0x0400u },
+    { 0x0382u, 0x7488u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0450u },
+    { 0x0384u, 0x0061u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3021u },
+    { 0x036bu, 0x3021u },
+    { 0x036cu, 0x73a0u },
+    { 0x0389u, 0x1e73u },
+    { 0x0388u, 0x1e73u },
+    { 0x038au, 0x71a5u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0075u },
+    { 0x037eu, 0xe075u },
+    { 0x0399u, 0x1072u },
+    { 0x0398u, 0x1072u },
+    { 0x039au, 0x7425u },
+    { 0x039bu, 0x4fffu },
+    { 0x039cu, 0x0055u },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81EBC[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0200u },
+    { 0x0380u, 0x0200u },
+    { 0x0382u, 0x7488u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a05u },
+    { 0x0384u, 0x0055u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x3121u },
+    { 0x036bu, 0x3121u },
+    { 0x036cu, 0x7605u },
+    { 0x0389u, 0x2173u },
+    { 0x0388u, 0x2173u },
+    { 0x038au, 0x74a5u },
+    { 0x038bu, 0x7f00u },
+    { 0x038cu, 0x0085u },
+    { 0x037eu, 0xe0f0u },
+    { 0x0399u, 0x1072u },
+    { 0x0398u, 0x1072u },
+    { 0x039au, 0x7425u },
+    { 0x039bu, 0x4fffu },
+    { 0x039cu, 0x0055u },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81F2C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0200u },
+    { 0x0380u, 0x0200u },
+    { 0x0382u, 0x7488u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a05u },
+    { 0x0384u, 0x0055u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x1921u },
+    { 0x036bu, 0x1921u },
+    { 0x036cu, 0x7525u },
+    { 0x0389u, 0x1823u },
+    { 0x0388u, 0x1823u },
+    { 0x038au, 0x7425u },
+    { 0x038bu, 0x70ffu },
+    { 0x038cu, 0x0072u },
+    { 0x037eu, 0xe1a0u },
+    { 0x0399u, 0x1072u },
+    { 0x0398u, 0x1072u },
+    { 0x039au, 0x7425u },
+    { 0x039bu, 0x4fffu },
+    { 0x039cu, 0x0055u },
+    { 0xf000u, 0x0002u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel3_F81F9C[] = {
+    { 0x0230u, 0xe800u },
+    { 0x0381u, 0x0200u },
+    { 0x0380u, 0x0200u },
+    { 0x0382u, 0x7488u },
+    { 0x0383u, 0x5fffu },
+    { 0x036eu, 0x0a05u },
+    { 0x0384u, 0x0055u },
+    { 0x0387u, 0x7fffu },
+    { 0x0385u, 0x0000u },
+    { 0x0386u, 0x0000u },
+    { 0x0369u, 0x7fffu },
+    { 0x036au, 0x0000u },
+    { 0x036du, 0x2d21u },
+    { 0x036bu, 0x2d21u },
+    { 0x036cu, 0x7525u },
+    { 0x0389u, 0x1823u },
+    { 0x0388u, 0x1823u },
+    { 0x038au, 0x7425u },
+    { 0x038bu, 0x70ffu },
+    { 0x038cu, 0x0072u },
+    { 0x037eu, 0xf150u },
+    { 0x0399u, 0x1072u },
+    { 0x0398u, 0x1072u },
+    { 0x039au, 0x7303u },
+    { 0x039bu, 0x7fffu },
+    { 0x039cu, 0x0055u },
+    { 0xf000u, 0x0003u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel3DisabledFlag[13] = {
+    kChannel3_F812A0,
+    kChannel3_F8135C,
+    kChannel3_F8135C,
+    kChannel3_F813CC,
+    kChannel3_F8143C,
+    kChannel3_F8143C,
+    kChannel3_F8143C,
+    kChannel3_F8143C,
+    kChannel3_F8143C,
+    kChannel3_F814AC,
+    kChannel3_F8151C,
+    kChannel3_F8158C,
+    kChannel3_F8158C,
+};
+
+static const ControllerProfilePair *const kChannel3DisabledDefault[13] = {
+    kChannel3_F812A0,
+    kChannel3_F81ACC,
+    kChannel3_F81ACC,
+    kChannel3_F81B3C,
+    kChannel3_F81BAC,
+    kChannel3_F81BAC,
+    kChannel3_F81BAC,
+    kChannel3_F81BAC,
+    kChannel3_F81BAC,
+    kChannel3_F81C1C,
+    kChannel3_F81C8C,
+    kChannel3_F81CFC,
+    kChannel3_F81CFC,
+};
+
+static const ControllerProfilePair *const kChannel3EnabledFlag[13] = {
+    kChannel3_F812A0,
+    kChannel3_F815FC,
+    kChannel3_F8166C,
+    kChannel3_F816DC,
+    kChannel3_F8174C,
+    kChannel3_F817BC,
+    kChannel3_F8182C,
+    kChannel3_F8182C,
+    kChannel3_F8197C,
+    kChannel3_F8197C,
+    kChannel3_F8197C,
+    kChannel3_F8197C,
+    kChannel3_F81A5C,
+};
+
+static const ControllerProfilePair *const kChannel3EnabledDefault[13] = {
+    kChannel3_F812A0,
+    kChannel3_F81D6C,
+    kChannel3_F81DDC,
+    kChannel3_F81E4C,
+    kChannel3_F81EBC,
+    kChannel3_F81F2C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+    kChannel3_F81F9C,
+};
+
+/* RAM:f8acb6 */
+void LoadControllerChannel3OperatingProfile(u8 operating_code)
+{
+    const ControllerProfilePair *records;
+    u8 enabled = FirmwareReadNear8(FW_NEAR_UNKNOWN_1006);
+    u8 flag = FirmwareReadNear8(FW_NEAR_UNKNOWN_FBEC);
+    u8 profile_index = MapOperatingCodeToProfileIndex(operating_code);
+
+    if(enabled == 0u)
+        records = flag == 1u ? kChannel3DisabledFlag[profile_index] : kChannel3DisabledDefault[profile_index];
+    else
+        records = flag == 1u ? kChannel3EnabledFlag[profile_index] : kChannel3EnabledDefault[profile_index];
+    while(records->selector != 0xffffu)
+    {
+        if(records->selector == 0xf000u)
+            WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180A7, (u8)records->value);
+        else
+            SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180AC, 8u);
+    while(WaitControllerPortReadyAndReadByte(FW_CONTROLLER_UNKNOWN_0180AC) != 0u)
+    {
+    }
+}
+static const ControllerProfilePair kChannel4_F8200C[] = {
+    { 0x0342u, 0x630cu },
+    { 0x0340u, 0xa3c4u },
+    { 0x0341u, 0x076au },
+    { 0x0343u, 0x0000u },
+    { 0x0344u, 0x0000u },
+    { 0x030fu, 0x1ca8u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F82034[] = {
+    { 0x0342u, 0x630cu },
+    { 0x0340u, 0xa3c4u },
+    { 0x0341u, 0x076au },
+    { 0x0343u, 0x0000u },
+    { 0x0344u, 0x0000u },
+    { 0x030fu, 0x1ca8u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0x0352u, 0x6af8u },
+    { 0x0350u, 0x0757u },
+    { 0x0351u, 0x0000u },
+    { 0x0353u, 0x0892u },
+    { 0x0354u, 0x80cdu },
+    { 0x0355u, 0x7fecu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F82074[] = {
+    { 0x0342u, 0x630cu },
+    { 0x0340u, 0xa3c4u },
+    { 0x0341u, 0x076au },
+    { 0x0343u, 0x0000u },
+    { 0x0344u, 0x0000u },
+    { 0x030fu, 0x1ca8u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F8209C[] = {
+    { 0x0342u, 0x51a9u },
+    { 0x0340u, 0xb3f5u },
+    { 0x0341u, 0x1db3u },
+    { 0x0343u, 0x0000u },
+    { 0x0344u, 0x0000u },
+    { 0x030fu, 0x2413u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F820C4[] = {
+    { 0x0342u, 0x5a9eu },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x8562u },
+    { 0x0344u, 0x213du },
+    { 0x030fu, 0x1449u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F820EC[] = {
+    { 0x0342u, 0x50c3u },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x8802u },
+    { 0x0344u, 0x1db3u },
+    { 0x030fu, 0x1b0du },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F82114[] = {
+    { 0x0342u, 0x50c3u },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x88c7u },
+    { 0x0344u, 0x1580u },
+    { 0x030fu, 0x1ca8u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F8213C[] = {
+    { 0x0342u, 0x5a9eu },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x88c7u },
+    { 0x0344u, 0x1580u },
+    { 0x030fu, 0x1f10u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F82164[] = {
+    { 0x0342u, 0x5a9eu },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x88c7u },
+    { 0x0344u, 0x1580u },
+    { 0x030fu, 0x174bu },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F8218C[] = {
+    { 0x0342u, 0x5ffdu },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x88c7u },
+    { 0x0344u, 0x1580u },
+    { 0x030fu, 0x16c3u },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel4_F821B4[] = {
+    { 0x0342u, 0x5ffdu },
+    { 0x0340u, 0x0000u },
+    { 0x0341u, 0x0000u },
+    { 0x0343u, 0x88c7u },
+    { 0x0344u, 0x1580u },
+    { 0x030fu, 0x174bu },
+    { 0x033eu, 0x0000u },
+    { 0x0345u, 0x7fffu },
+    { 0x032eu, 0x7fffu },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel4Disabled[13] = {
+    kChannel4_F8200C,
+    kChannel4_F82034,
+    kChannel4_F82034,
+    kChannel4_F82074,
+    kChannel4_F8209C,
+    kChannel4_F8209C,
+    kChannel4_F8209C,
+    kChannel4_F8209C,
+    kChannel4_F820C4,
+    kChannel4_F820C4,
+    kChannel4_F820EC,
+    kChannel4_F82114,
+    kChannel4_F82114,
+};
+
+static const ControllerProfilePair *const kChannel4Enabled[13] = {
+    kChannel4_F8200C,
+    kChannel4_F82034,
+    kChannel4_F82034,
+    kChannel4_F82074,
+    kChannel4_F8209C,
+    kChannel4_F8213C,
+    kChannel4_F8213C,
+    kChannel4_F82164,
+    kChannel4_F8218C,
+    kChannel4_F8218C,
+    kChannel4_F8218C,
+    kChannel4_F8218C,
+    kChannel4_F821B4,
+};
+
+/* RAM:f8adf3 */
+void LoadControllerChannel4OperatingProfile(u8 operating_code)
+{
+    const ControllerProfilePair *records = (FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u ? kChannel4Disabled : kChannel4Enabled)[MapOperatingCodeToProfileIndex(operating_code)];
+    while(records->selector != 0xffffu)
+    {
+        SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+}
+static const ControllerProfilePair kChannel5_F821E8[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0000u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F821DC[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0000u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F821F4[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0000u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F82200[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0147u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F8220C[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0020u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F82218[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0020u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F82224[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0020u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F82230[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0020u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F8223C[] = {
+    { 0x031fu, 0x0000u },
+    { 0x033fu, 0x0020u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel5_F80540[] = {
+    { 0x0358u, 0x067eu },
+    { 0x0357u, 0x067eu },
+    { 0x0356u, 0x7304u },
+    { 0x0359u, 0x8242u },
+    { 0x035au, 0x6013u },
+    { 0x035bu, 0x7fffu },
+    { 0x035cu, 0x594du },
+    { 0x035du, 0x1ca8u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel5Disabled[13] = {
+    kChannel5_F821E8,
+    kChannel5_F821DC,
+    kChannel5_F821DC,
+    kChannel5_F821E8,
+    kChannel5_F821F4,
+    kChannel5_F82200,
+    kChannel5_F82200,
+    kChannel5_F8220C,
+    kChannel5_F82200,
+    kChannel5_F82200,
+    kChannel5_F8220C,
+    kChannel5_F82218,
+    kChannel5_F82218,
+};
+
+static const ControllerProfilePair *const kChannel5Enabled[13] = {
+    kChannel5_F821E8,
+    kChannel5_F821DC,
+    kChannel5_F821DC,
+    kChannel5_F821E8,
+    kChannel5_F821F4,
+    kChannel5_F82200,
+    kChannel5_F82200,
+    kChannel5_F8220C,
+    kChannel5_F82224,
+    kChannel5_F82230,
+    kChannel5_F8223C,
+    kChannel5_F8223C,
+    kChannel5_F8223C,
+};
+
+/* RAM:f8ae97 */
+void LoadControllerChannel5OperatingProfile(u8 operating_code)
+{
+    const ControllerProfilePair *records = (FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u ? kChannel5Disabled : kChannel5Enabled)[MapOperatingCodeToProfileIndex(operating_code)];
+    while(records->selector != 0xffffu)
+    {
+        SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    if(operating_code == 0u)
+    {
+        records = kChannel5_F80540;
+        while(records->selector != 0xffffu)
+        {
+            SubmitControllerWordPair(records->value, records->selector);
+            records++;
+        }
+    }
+}
+static const ControllerProfilePair kChannel6_F82260[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F82248[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F82278[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F82290[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F822A8[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F822D8[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F822F0[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair kChannel6_F82308[] = {
+    { 0x037au, 0x0000u },
+    { 0x0379u, 0x6af8u },
+    { 0x037bu, 0x0757u },
+    { 0x037cu, 0x6af8u },
+    { 0x037du, 0x0757u },
+    { 0xffffu, 0xffffu },
+};
+
+static const ControllerProfilePair *const kChannel6Disabled[13] = {
+    kChannel6_F82260,
+    kChannel6_F82248,
+    kChannel6_F82248,
+    kChannel6_F82260,
+    kChannel6_F82278,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F822A8,
+    kChannel6_F822A8,
+    kChannel6_F822A8,
+};
+
+static const ControllerProfilePair *const kChannel6Enabled[13] = {
+    kChannel6_F82260,
+    kChannel6_F82248,
+    kChannel6_F82248,
+    kChannel6_F82260,
+    kChannel6_F82278,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F82290,
+    kChannel6_F822D8,
+    kChannel6_F822F0,
+    kChannel6_F82308,
+    kChannel6_F82308,
+    kChannel6_F82308,
+};
+
+/* RAM:f8afac */
+void LoadControllerChannel6OperatingProfile(u8 operating_code)
+{
+    const ControllerProfilePair *records = (FirmwareReadNear8(FW_NEAR_UNKNOWN_1006) == 0u ? kChannel6Disabled : kChannel6Enabled)[MapOperatingCodeToProfileIndex(operating_code)];
+    while(records->selector != 0xffffu)
+    {
+        SubmitControllerWordPair(records->value, records->selector);
+        records++;
+    }
+    WaitControllerPortReadyAndWriteByte(FW_CONTROLLER_UNKNOWN_0180AC, 0x10u);
+    while(WaitControllerPortReadyAndReadByte(FW_CONTROLLER_UNKNOWN_0180AC) != 0u)
+    {
+    }
+}
+
+/* RAM:f8a9d0 */
+void LoadControllerOperatingProfile(u8 profile_index)
+{
+    LoadControllerChannel0OperatingProfile(profile_index);
+    LoadControllerChannel1OperatingProfile(profile_index);
+    LoadControllerChannel4OperatingProfile(profile_index);
+    LoadControllerChannel5OperatingProfile(profile_index);
+    LoadControllerChannel2OperatingProfile(profile_index);
+    LoadControllerChannel3OperatingProfile(profile_index);
+    LoadControllerChannel6OperatingProfile(profile_index);
+}
+
+/* Fixed records from /validated/MONT_104.bin RAM:ff85c0..ff873c. */
+static const ControllerProfilePair kFixedControllerParameterTable0[] = {
+    { 0x0101u, 0x0010u },
+    { 0x0102u, 0x000eu },
+    { 0x0103u, 0x000cu },
+    { 0x0104u, 0xfff0u },
+    { 0x0105u, 0x0010u },
+    { 0x0106u, 0xfff0u },
+    { 0x0107u, 0x000cu },
+    { 0x0108u, 0x0022u },
+    { 0x0109u, 0x0002u },
+    { 0x010au, 0x000cu },
+    { 0x010cu, 0x00d0u },
+    { 0xffffu, 0xffffu }
+};
+static const ControllerProfilePair kFixedControllerParameterTable1[] = {
+    { 0x010du, 0x000au },
+    { 0x010eu, 0x001cu },
+    { 0x010fu, 0x0008u },
+    { 0x0110u, 0xffd0u },
+    { 0x0111u, 0x0018u },
+    { 0x0113u, 0x0052u },
+    { 0x0114u, 0x0027u },
+    { 0x0115u, 0x000au },
+    { 0x0116u, 0xffe4u },
+    { 0x0117u, 0x0008u },
+    { 0x0118u, 0x0030u },
+    { 0x0119u, 0xffe8u },
+    { 0x011bu, 0xffb7u },
+    { 0x011cu, 0xffdeu },
+    { 0x011du, 0x00d0u },
+    { 0x011eu, 0x0210u },
+    { 0x0120u, 0x0007u },
+    { 0x0121u, 0x000cu },
+    { 0x0123u, 0x44e8u },
+    { 0xffffu, 0xffffu }
+};
+static const ControllerProfilePair kFixedControllerParameterTable2[] = {
+    { 0x0124u, 0x000eu },
+    { 0x0125u, 0x0017u },
+    { 0x0126u, 0x000eu },
+    { 0x0127u, 0x0017u },
+    { 0x0128u, 0x000eu },
+    { 0x0129u, 0x0017u },
+    { 0x012au, 0x000eu },
+    { 0x012bu, 0x0017u },
+    { 0x012cu, 0x000bu },
+    { 0x012du, 0x0020u },
+    { 0x012eu, 0x0009u },
+    { 0x012fu, 0x002au },
+    { 0x0130u, 0x0007u },
+    { 0x0131u, 0x0040u },
+    { 0x015du, 0x0020u },
+    { 0x015cu, 0x0020u },
+    { 0x015bu, 0x0020u },
+    { 0x015au, 0x0020u },
+    { 0x0159u, 0x002cu },
+    { 0xffffu, 0xffffu }
+};
+static const ControllerProfilePair kFixedControllerParameterTable3[] = {
+    { 0x0133u, 0x0160u },
+    { 0x0134u, 0x0160u },
+    { 0x015fu, 0x0001u },
+    { 0x015eu, 0x0001u },
+    { 0xffffu, 0xffffu }
+};
+static const ControllerProfilePair kFixedControllerParameterTable4[] = {
+    { 0x0135u, 0x0001u },
+    { 0x0136u, 0x0001u },
+    { 0x0137u, 0x0001u },
+    { 0x0138u, 0x0001u },
+    { 0x0139u, 0x0001u },
+    { 0x013au, 0x0001u },
+    { 0x013bu, 0x0001u },
+    { 0x013cu, 0x0001u },
+    { 0x013du, 0x0001u },
+    { 0x013fu, 0x0001u },
+    { 0x0140u, 0x0001u },
+    { 0x0141u, 0x0001u },
+    { 0x0142u, 0x0001u },
+    { 0x0143u, 0x0001u },
+    { 0x0144u, 0x0001u },
+    { 0x0145u, 0x0001u },
+    { 0x0146u, 0x0001u },
+    { 0x0149u, 0x0060u },
+    { 0x014au, 0x0050u },
+    { 0x014bu, 0x0001u },
+    { 0x014cu, 0x0001u },
+    { 0x014du, 0x0001u },
+    { 0x014eu, 0x0001u },
+    { 0x014fu, 0x0001u },
+    { 0x0150u, 0x0001u },
+    { 0x0151u, 0x0001u },
+    { 0x0152u, 0x0001u },
+    { 0x0153u, 0x0001u },
+    { 0x0154u, 0x0001u },
+    { 0x0155u, 0x0001u },
+    { 0x0156u, 0x0001u },
+    { 0x0157u, 0x0001u },
+    { 0x0158u, 0x0001u },
+    { 0x0112u, 0x0001u },
+    { 0x011au, 0x0001u },
+    { 0x011fu, 0x0001u },
+    { 0xffffu, 0xffffu }
+};
+
+/* RAM:f8b06e */
+void LoadFixedControllerParameterTables(void)
+{
+    u8 table_index;
+
+    for(table_index = 0u; table_index < 5u; ++table_index)
+    {
+        const ControllerProfilePair *records;
+
+        switch(table_index)
+        {
+        case 0u:
+            records = kFixedControllerParameterTable0;
+            break;
+        case 1u:
+            records = kFixedControllerParameterTable1;
+            break;
+        case 2u:
+            records = kFixedControllerParameterTable2;
+            break;
+        case 3u:
+            records = kFixedControllerParameterTable3;
+            break;
+        default:
+            records = kFixedControllerParameterTable4;
+            break;
+        }
+        while(records->selector != 0xffffu)
+        {
+            SubmitControllerWordPair(records->value, records->selector);
+            records++;
+        }
+    }
+}
+
+/* RAM:f9ee1d */
+void InitializeGeneratedControllerProfileStorageFromIndex(u8 first_profile_index)
+{
+    u8 computed_index;
+
+    while(first_profile_index < 50u)
+    {
+        fw_addr_t profile_address = FW_NEAR_UNKNOWN_E806 + (fw_addr_t)((u16)first_profile_index * 34u);
+        u8 byte_index;
+
+        for(byte_index = 0u; byte_index < 33u; ++byte_index)
+            FirmwareWrite8(profile_address + byte_index, 0u);
+        FirmwareWrite8(profile_address + 33u, 0xffu);
+        first_profile_index++;
+    }
+    for(computed_index = 0u; computed_index < 100u; ++computed_index)
+    {
+        fw_addr_t value_address = FW_NEAR_UNKNOWN_EEAA + (fw_addr_t)((u16)computed_index << 1);
+
+        FirmwareWrite8(value_address, 0u);
+        FirmwareWrite8(value_address + 1u, 0u);
+    }
+}
+
+/* RAM:f9edeb */
+/* Native XRL B,B then SJMP RAM:f9ee1d. */
+void InitializeGeneratedControllerProfileStorage(void)
+{
+    InitializeGeneratedControllerProfileStorageFromIndex(0u);
+}
+
+/* RAM:f9ed1a */
+void PLEXTOR_NEAR_FUNCTION InitializeFixedControllerProfileStorage(void)
+{
+    u8 profile_index;
+
+    InitializeGeneratedControllerProfileStorage();
+    for(profile_index = 0u; profile_index < 5u; ++profile_index)
+    {
+        fw_addr_t profile_address = FW_NEAR_UNKNOWN_E75C + (fw_addr_t)((u16)profile_index * 34u);
+        u8 byte_index;
+
+        for(byte_index = 0u; byte_index < 33u; ++byte_index)
+            FirmwareWrite8(profile_address + byte_index, 0u);
+        FirmwareWrite8(profile_address + 33u, 0xffu);
+    }
+    for(profile_index = 5u; profile_index != 0u; --profile_index)
+    {
+        fw_addr_t value_address = FW_NEAR_UNKNOWN_E752 + (fw_addr_t)((u16)(profile_index - 1u) << 1);
+
+        FirmwareWrite8(value_address, 0u);
+        FirmwareWrite8(value_address + 1u, 0u);
+    }
+}
