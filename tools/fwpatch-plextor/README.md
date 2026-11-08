@@ -36,6 +36,7 @@ Both the description and each patch accept an optional string `comment`.
 See [york-107.json](../../firmware/px-w4824a/york-107.json) for an example.
 
 Validates the input hash, checksum, original bytes, patch bounds, and overlaps.
-Current image validation accepts 512-KiB PX-W4824A/YORK and PX-W5224A/MONT images.
-Revision and checksum fields are managed automatically, and erased recovery/padding
+Current image validation accepts 512-KiB PX-S88T/OTTAWA, PX-W8432T/MUNCHEN,
+PX-W1610A/SEATTLE, PX-W2410A/WINCHES, PX-W4824A/YORK, and PX-W5224A/MONT images.
+Revision and checksum fields are managed automatically. Recovery and padding
 regions are preserved.

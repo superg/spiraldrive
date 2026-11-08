@@ -1,0 +1,43 @@
+{
+  "sha1": "e1acfd428d4b7e8eba4537613fc6cb9d46f42082",
+  "revision": "G106",
+  "comment": "PX-S88T OTTAWA 1.06 D8 DATA_C2_SUB and data-track admission, with 4x special negative acquisition",
+  "patches": [
+    {
+      "offset": "0x60f06",
+      "old": "6e 69 00 0a",
+      "new": "5e 06 c0 50",
+      "comment": "Admit D8 modes 0..3 and 8 through the existing validation mask"
+    },
+    {
+      "offset": "0x60f6c",
+      "old": "6e 58 00 0a",
+      "new": "5e 06 c0 5c",
+      "comment": "Translate mode 8 to internal format 4 in R0L and enable the existing C2 capture and transfer flag"
+    },
+    {
+      "offset": "0x613ee",
+      "old": "6a 08 f1 dc",
+      "new": "5e 06 c0 70",
+      "comment": "Exempt only D8 from the data-track restriction, retaining media and range checks"
+    },
+    {
+      "offset": "0x6c050",
+      "old": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff",
+      "new": "6e 69 00 0a a9 08 46 02 18 99 54 70 6e 58 00 0a a8 08 46 0a f8 04 6a 38 00 ff ac af 70 10 54 70 6a 28 00 ff aa 76 a8 d8 47 04 6a 08 f1 dc 54 70",
+      "comment": "48-byte H8S format and data-track admission adapters in erased main-image space"
+    },
+    {
+      "offset": "0x60bee",
+      "old": "6a 08 f1 d5",
+      "new": "5e 06 c0 80",
+      "comment": "Apply the negative acquisition speed cap before publishing the acquisition speed"
+    },
+    {
+      "offset": "0x6c080",
+      "old": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff",
+      "new": "6a 28 00 ff ac a5 73 38 47 10 6a 28 00 ff aa 0d a8 03 43 06 f8 04 6a 88 f1 d5 6a 08 f1 d5 54 70",
+      "comment": "Cap special negative acquisition at 4x for requests of at least 4x, preserving ordinary-read speed policy and the original request"
+    }
+  ]
+}

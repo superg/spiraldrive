@@ -1,0 +1,31 @@
+{
+  "sha1": "9b823c4df547aefae850ff60678fa3457d51a145",
+  "revision": "G104",
+  "comment": "PX-W2410A WINCHES 1.04 D8 DATA_C2_SUB and data-track admission",
+  "patches": [
+    {
+      "offset": "0x625da",
+      "old": "6e 69 00 0a",
+      "new": "5e 06 eb 60",
+      "comment": "Admit D8 modes 0..3 and 8 through the existing validation mask"
+    },
+    {
+      "offset": "0x6264a",
+      "old": "6e 59 00 0a",
+      "new": "5e 06 eb 6c",
+      "comment": "Translate D8 mode 8 to internal format 4 and enable C2"
+    },
+    {
+      "offset": "0x62a64",
+      "old": "6a 08 f1 da",
+      "new": "5e 06 eb 80",
+      "comment": "Exempt D8 from the CD-DA-only media check, preserving range checks and other opcodes"
+    },
+    {
+      "offset": "0x6eb60",
+      "old": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff",
+      "new": "6e 69 00 0a a9 08 46 02 18 99 54 70 6e 59 00 0a a9 08 46 0a f9 04 6a 38 00 ff 9f a5 70 10 54 70 6a 28 00 ff 9e e2 a8 d8 47 04 6a 08 f1 da 54 70",
+      "comment": "H8S format and data-track admission adapters in erased main-image space"
+    }
+  ]
+}

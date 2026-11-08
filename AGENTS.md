@@ -15,9 +15,21 @@ The separate Ponytail section below preserves the complete [upstream AGENTS.md](
 
 - Never edit `.gitignore` or add ignore exceptions. The user manages that file and decides when exceptions are needed.
 
+## Line endings
+
+- Follow `.gitattributes` when creating or editing files. Write text files with LF line endings unless an explicit file-specific rule requires otherwise, and verify line endings before finishing to prevent Git conversion warnings.
+
 ## Tool scope
 
 - `fwpatch-plextor` is a generic firmware patcher for Sanyo-based Plextor drives. Describe its purpose independently of individual model patches.
+
+## Firmware patches
+
+- Store firmware binaries under `data/<model>/` and JSON patch descriptions under `firmware/<model>/`.
+- In JSON patches, form the revision by removing `.` from the original revision and prefixing `G`. For example, `1.04` becomes `G104`.
+- Keep one latest working patch JSON per model. Do not use `experimental` in patch filenames or comments.
+- Keep patch JSON comments self-contained, without references to other files or analysis documents.
+- Fix drive compatibility in firmware. Preserve existing Redumper behavior and leave tools unchanged unless the user explicitly requests tool changes.
 
 ## Writing style
 

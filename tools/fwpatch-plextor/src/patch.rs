@@ -7,14 +7,14 @@ use sha1::{Digest, Sha1};
 use std::{fmt, marker::PhantomData, ops::Range};
 
 const IMAGE_SIZE: usize = 0x80000;
-const REVISION_OFFSET: usize = 0x18;
-const CHECKSUM_OFFSET: usize = 0x79ffe;
-const ERASED_RANGES: [Range<usize>; 2] = [0x70000..0x78000, 0x7a000..IMAGE_SIZE];
-const RESERVED_RANGES: [Range<usize>; 3] = [
-    REVISION_OFFSET..REVISION_OFFSET + 4,
-    0x70000..0x78000,
-    CHECKSUM_OFFSET..IMAGE_SIZE,
-];
+
+struct ImageLayout {
+    revisions: &'static [usize],
+    checksum: usize,
+    checksum_range: Range<usize>,
+    checksum_bias: u32,
+    erased: &'static [Range<usize>],
+}
 
 // Derived struct deserializers also accept sequences. Require JSON objects at
 // both levels, then let Serde reject duplicate, missing, and unknown fields.
@@ -147,14 +147,14 @@ pub fn parse_description(bytes: &[u8]) -> Result<Description> {
     })
 }
 
-fn checksum(image: &[u8]) -> u16 {
-    let sum = image[..CHECKSUM_OFFSET]
+fn checksum(image: &[u8], layout: &ImageLayout) -> u16 {
+    let sum = image[layout.checksum_range.clone()]
         .iter()
-        .fold(0x8000u32, |sum, &byte| sum + u32::from(byte));
+        .fold(layout.checksum_bias, |sum, &byte| sum + u32::from(byte));
     (sum & 0xffff) as u16
 }
 
-fn validate_image(image: &[u8]) -> Result<()> {
+fn validate_image(image: &[u8]) -> Result<ImageLayout> {
     ensure!(
         image.len() == IMAGE_SIZE,
         "firmware must be exactly 0x80000 bytes (512 KiB)"
@@ -163,11 +163,44 @@ fn validate_image(image: &[u8]) -> Result<()> {
         && image[0x30..].starts_with(b"PLEXTOR YORK");
     let mont = image.starts_with(b"PLEXTOR CD-R   PX-W5224A")
         && image[0x30..].starts_with(b"PLEXTOR MONT");
-    ensure!(
-        york || mont,
-        "unsupported firmware identification: expected PX-W4824A/YORK or PX-W5224A/MONT"
-    );
-    for range in ERASED_RANGES {
+    let winc = image[0x10000..].starts_with(b"PLEXTOR CD-R   PX-W2410A")
+        && image[0x10030..].starts_with(b"PLEXTOR WINCHES");
+    let seat = image[0x10000..].starts_with(b"PLEXTOR CD-R   PX-W1610A")
+        && image[0x10030..].starts_with(b"PLEXTOR SEATTLE");
+    let otta = image[0x10000..].starts_with(b"PLEXTOR CD-R   PX-S88T")
+        && image[0x10030..].starts_with(b"PLEXTOR OTTAWA");
+    let munc = image[0x5bd20..].starts_with(b"PLEXTOR \0CD-R   PX-W8432T\0")
+        && image[0x5ff1c..].starts_with(b"PLEXTOR MUNCHEN");
+    let layout = if york || mont {
+        ImageLayout {
+            revisions: &[0x18],
+            checksum: 0x79ffe,
+            checksum_range: 0..0x79ffe,
+            checksum_bias: 0x8000,
+            erased: &[0x70000..0x78000, 0x7a000..IMAGE_SIZE],
+        }
+    } else if winc || seat || otta {
+        ImageLayout {
+            revisions: &[0x10018],
+            checksum: 0x77ffe,
+            checksum_range: 0..0x77ffe,
+            checksum_bias: 0,
+            erased: &[0..0x10000, 0x78000..IMAGE_SIZE],
+        }
+    } else if munc {
+        ImageLayout {
+            revisions: &[0x5b99a, 0x5bd3a],
+            checksum: 0x5fffe,
+            checksum_range: 0x10000..0x5fffe,
+            checksum_bias: 0,
+            erased: &[0..0x10000, 0x60000..IMAGE_SIZE],
+        }
+    } else {
+        anyhow::bail!(
+            "unsupported firmware identification: expected PX-W4824A/YORK, PX-W5224A/MONT, PX-W2410A/WINCHES, PX-W1610A/SEATTLE, PX-W8432T/MUNCHEN, or PX-S88T/OTTAWA"
+        );
+    };
+    for range in layout.erased {
         ensure!(
             image[range.clone()].iter().all(|&b| b == 0xff),
             "firmware erased region {:#x}..{:#x} is not all ff",
@@ -175,13 +208,13 @@ fn validate_image(image: &[u8]) -> Result<()> {
             range.end - 1
         );
     }
-    let stored = u16::from_be_bytes([image[CHECKSUM_OFFSET], image[CHECKSUM_OFFSET + 1]]);
-    let calculated = checksum(image);
+    let stored = u16::from_be_bytes([image[layout.checksum], image[layout.checksum + 1]]);
+    let calculated = checksum(image, &layout);
     ensure!(
         stored == calculated,
         "firmware checksum mismatch: stored {stored:#06x}, calculated {calculated:#06x}"
     );
-    Ok(())
+    Ok(layout)
 }
 
 pub fn patch_image(original: &[u8], description: &Description) -> Result<PatchedImage> {
@@ -194,7 +227,12 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
         "firmware SHA-1 mismatch: expected {}, got {actual_sha1}",
         description.sha1
     );
-    validate_image(original)?;
+    let layout = validate_image(original)?;
+    let mut reserved_ranges = layout.erased.to_vec();
+    reserved_ranges.push(0..layout.checksum_range.start);
+    reserved_ranges.push(layout.checksum..layout.checksum + 2);
+    reserved_ranges.push(layout.checksum_range.end..IMAGE_SIZE);
+    reserved_ranges.extend(layout.revisions.iter().map(|&offset| offset..offset + 4));
 
     let mut ranges = Vec::with_capacity(description.patches.len());
     for (index, patch) in description.patches.iter().enumerate() {
@@ -205,10 +243,10 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
             "patch {number} at {start:#x}: range is outside the firmware"
         );
         let end = start + patch.old.len();
-        for reserved in RESERVED_RANGES {
+        for reserved in &reserved_ranges {
             ensure!(
                 !(start < reserved.end && end > reserved.start),
-                "patch {number} at {start:#x}: overlaps an automatic field or erased recovery/padding region"
+                "patch {number} at {start:#x}: overlaps an automatic field or protected firmware region"
             );
         }
         if let Some(mismatch) = original[start..end]
@@ -236,12 +274,127 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
     for patch in &description.patches {
         bytes[patch.offset..patch.offset + patch.new.len()].copy_from_slice(&patch.new);
     }
-    bytes[REVISION_OFFSET..REVISION_OFFSET + 4].copy_from_slice(description.revision.as_bytes());
-    let sum = checksum(&bytes);
-    bytes[CHECKSUM_OFFSET..CHECKSUM_OFFSET + 2].copy_from_slice(&sum.to_be_bytes());
+    for &offset in layout.revisions {
+        bytes[offset..offset + 4].copy_from_slice(description.revision.as_bytes());
+    }
+    let sum = checksum(&bytes, &layout);
+    bytes[layout.checksum..layout.checksum + 2].copy_from_slice(&sum.to_be_bytes());
     validate_image(&bytes)?;
     Ok(PatchedImage {
         bytes,
         checksum: sum,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn munchen_updates_both_revision_fields_and_protects_its_layout() {
+        let mut original = vec![0xff; IMAGE_SIZE];
+        let identification = b"PLEXTOR \0CD-R   PX-W8432T\0";
+        original[0x5bd20..0x5bd20 + identification.len()].copy_from_slice(identification);
+        original[0x5ff1c..0x5ff1c + 15].copy_from_slice(b"PLEXTOR MUNCHEN");
+        let sum = original[0x10000..0x5fffe]
+            .iter()
+            .map(|&b| u32::from(b))
+            .sum::<u32>() as u16;
+        original[0x5fffe..0x60000].copy_from_slice(&sum.to_be_bytes());
+        let mut description = Description {
+            sha1: Sha1::digest(&original)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            revision: "G109".into(),
+            patches: vec![Patch {
+                offset: 0x5f560,
+                old: vec![0xff],
+                new: vec![0x42],
+            }],
+        };
+        let result = patch_image(&original, &description).unwrap();
+        for offset in [0x5b99a, 0x5bd3a] {
+            assert_eq!(&result.bytes[offset..offset + 4], b"G109");
+        }
+        let expected = result.bytes[0x10000..0x5fffe]
+            .iter()
+            .map(|&b| u32::from(b))
+            .sum::<u32>() as u16;
+        assert_eq!(&result.bytes[0x5fffe..0x60000], &expected.to_be_bytes());
+        for offset in [0, 0x60000, 0x5b99a, 0x5bd3a, 0x5fffe] {
+            description.patches[0].offset = offset;
+            assert!(patch_image(&original, &description).is_err());
+        }
+    }
+
+    #[test]
+    fn model_layouts_preserve_reserved_bytes_and_place_checksum() {
+        for (model, family, header, checksum_offset, bias, erased_probe) in [
+            ("PX-W4824A", "YORK", 0, 0x79ffe, 0x8000, 0x70000),
+            ("PX-W5224A", "MONT", 0, 0x79ffe, 0x8000, 0x70000),
+            ("PX-W2410A", "WINCHES", 0x10000, 0x77ffe, 0, 0),
+            ("PX-W1610A", "SEATTLE", 0x10000, 0x77ffe, 0, 0),
+            ("PX-S88T", "OTTAWA", 0x10000, 0x77ffe, 0, 0),
+        ] {
+            let mut original = vec![0xff; IMAGE_SIZE];
+            let identification = format!("PLEXTOR CD-R   {model}");
+            original[header..header + identification.len()]
+                .copy_from_slice(identification.as_bytes());
+            let family = format!("PLEXTOR {family}");
+            original[header + 0x30..header + 0x30 + family.len()]
+                .copy_from_slice(family.as_bytes());
+            let sum = original[..checksum_offset]
+                .iter()
+                .fold(bias, |sum: u32, &byte| sum + u32::from(byte)) as u16;
+            original[checksum_offset..checksum_offset + 2].copy_from_slice(&sum.to_be_bytes());
+            let mut description = Description {
+                sha1: Sha1::digest(&original)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+                revision: "T104".into(),
+                patches: vec![Patch {
+                    offset: header + 0x50,
+                    old: vec![0xff],
+                    new: vec![0x42],
+                }],
+            };
+            let result = patch_image(&original, &description).unwrap();
+            assert_eq!(&result.bytes[header + 0x18..header + 0x1c], b"T104");
+            assert_eq!(result.bytes[header + 0x50], 0x42);
+            assert_eq!(result.bytes[erased_probe], 0xff);
+            let expected = result.bytes[..checksum_offset]
+                .iter()
+                .fold(bias, |sum: u32, &byte| sum + u32::from(byte))
+                as u16;
+            assert_eq!(
+                &result.bytes[checksum_offset..checksum_offset + 2],
+                &expected.to_be_bytes()
+            );
+            for offset in [erased_probe, header + 0x18, checksum_offset] {
+                description.patches[0].offset = offset;
+                description.patches[0].old = vec![original[offset]];
+                assert!(
+                    patch_image(&original, &description)
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("overlaps")
+                );
+            }
+            original[header + 0x51] ^= 1;
+            description.sha1 = Sha1::digest(&original)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            assert!(
+                patch_image(&original, &description)
+                    .err()
+                    .unwrap()
+                    .to_string()
+                    .contains("checksum mismatch")
+            );
+        }
+    }
 }
