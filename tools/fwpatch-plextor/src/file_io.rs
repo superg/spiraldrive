@@ -43,10 +43,10 @@ pub fn output_path(firmware: &Path) -> Result<PathBuf> {
         .join(name))
 }
 
-fn protect_inputs(output: &Path, firmware: &Path, description: &Path) -> Result<()> {
+fn protect_inputs(output: &Path, inputs: &[PathBuf]) -> Result<()> {
     match fs::metadata(output) {
         Ok(_) => {
-            for input in [firmware, description] {
+            for input in inputs {
                 let same = same_file::is_same_file(output, input).with_context(|| {
                     format!(
                         "cannot compare output '{}' with input '{}'",
@@ -68,13 +68,8 @@ fn protect_inputs(output: &Path, firmware: &Path, description: &Path) -> Result<
     Ok(())
 }
 
-pub fn write_output(
-    output: &Path,
-    bytes: &[u8],
-    firmware: &Path,
-    description: &Path,
-) -> Result<()> {
-    protect_inputs(output, firmware, description)?;
+pub fn write_output(output: &Path, bytes: &[u8], inputs: &[PathBuf]) -> Result<()> {
+    protect_inputs(output, inputs)?;
     let directory = output.parent().context("output has no parent directory")?;
     let mut temporary = tempfile::Builder::new()
         .prefix(".fwpatch-plextor-")
@@ -93,7 +88,7 @@ pub fn write_output(
         .as_file()
         .sync_all()
         .context("cannot synchronize temporary output")?;
-    protect_inputs(output, firmware, description)?;
+    protect_inputs(output, inputs)?;
     // persist atomically replaces an existing entry on the same filesystem.
     // Keep the returned file owner on failure so its Drop removes the temp.
     if let Err(error) = temporary.persist(output) {
@@ -104,4 +99,36 @@ pub fn write_output(
         return Err(error).with_context(|| format!("cannot replace output '{}'", output.display()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protects_every_input_and_hard_link_before_replacing_output() {
+        let directory = tempfile::tempdir().unwrap();
+        let inputs: Vec<_> = ["stock.bin", "patch.json", "payload.hex", "payload.map"]
+            .iter()
+            .map(|name| directory.path().join(name))
+            .collect();
+        for input in &inputs {
+            fs::write(input, b"original").unwrap();
+        }
+        let output = directory.path().join("patched.bin");
+        for input in &inputs {
+            assert!(write_output(input, b"patched", &inputs).is_err());
+            fs::hard_link(input, &output).unwrap();
+            assert!(write_output(&output, b"patched", &inputs).is_err());
+            assert_eq!(fs::read(input).unwrap(), b"original");
+            fs::remove_file(&output).unwrap();
+        }
+        write_output(&output, b"patched", &inputs).unwrap();
+        write_output(&output, b"replacement", &inputs).unwrap();
+        assert_eq!(fs::read(output).unwrap(), b"replacement");
+        assert_eq!(
+            fs::read_dir(directory.path()).unwrap().count(),
+            inputs.len() + 1
+        );
+    }
 }

@@ -5,14 +5,12 @@
   "patches": [
     {
       "offset": "0x6c21a",
-      "old": "9c 00",
-      "new": "1a 01",
+      "value": "1a 01",
       "comment": "Sign-extend newest descriptor position"
     },
     {
       "offset": "0x6c242",
-      "old": "9c 00",
-      "new": "1a 01",
+      "value": "1a 01",
       "comment": "Sign-extend oldest descriptor position"
     }
   ]

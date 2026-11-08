@@ -1,5 +1,6 @@
 mod file_io;
 mod patch;
+mod payload;
 
 use anyhow::{Context, Result, ensure};
 use std::{env, io::Write, path::PathBuf, process::ExitCode};
@@ -14,15 +15,22 @@ fn run() -> Result<()> {
     let description_path = PathBuf::from(&args[1]);
     let description = patch::parse_description(&file_io::read_file(&description_path)?)
         .with_context(|| format!("invalid description '{}'", description_path.display()))?;
+    let mut inputs = vec![firmware_path.clone(), description_path.clone()];
+    let payload = if let Some([hex_path, map_path]) = description.payload_paths(&description_path) {
+        let loaded = payload::parse(
+            &file_io::read_file(&hex_path)?,
+            &file_io::read_file(&map_path)?,
+        )
+        .with_context(|| format!("invalid payload '{}'", hex_path.display()))?;
+        inputs.extend([hex_path, map_path]);
+        Some(loaded)
+    } else {
+        None
+    };
     let original = file_io::read_file(&firmware_path)?;
-    let result = patch::patch_image(&original, &description)?;
+    let result = patch::patch_image(&original, &description, payload.as_ref())?;
     let destination = file_io::output_path(&firmware_path)?;
-    file_io::write_output(
-        &destination,
-        &result.bytes,
-        &firmware_path,
-        &description_path,
-    )?;
+    file_io::write_output(&destination, &result.bytes, &inputs)?;
 
     let mut output = std::io::stdout().lock();
     writeln!(output, "Output: {}", destination.display())?;

@@ -5,26 +5,22 @@
   "patches": [
     {
       "offset": "0x5b9b8",
-      "old": "6e 59 00 0a",
-      "new": "5e 06 59 60",
+      "value": "5e 06 59 60",
       "comment": "Admit D8 modes 0..3 and 8 through the existing validation mask"
     },
     {
       "offset": "0x5ba30",
-      "old": "6e 68 00 0a",
-      "new": "5e 06 59 6c",
+      "value": "5e 06 59 6c",
       "comment": "Translate mode 8 to internal format 4 in R0L and enable C2 after capture cleanup"
     },
     {
       "offset": "0x5be40",
-      "old": "6a 08 fb e2",
-      "new": "5e 06 59 80",
+      "value": "5e 06 59 80",
       "comment": "Exempt only D8 from the CD-DA-only media check, preserving range checks"
     },
     {
       "offset": "0x65960",
-      "old": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff",
-      "new": "6e 59 00 0a a9 08 46 02 18 99 54 70 6e 68 00 0a a8 08 46 0a f8 04 6a 38 00 ff fb 23 70 10 54 70 6a 28 00 ff f8 68 a8 d8 47 04 6a 08 fb e2 54 70",
+      "value": "6e 59 00 0a a9 08 46 02 18 99 54 70 6e 68 00 0a a8 08 46 0a f8 04 6a 38 00 ff fb 23 70 10 54 70 6a 28 00 ff f8 68 a8 d8 47 04 6a 08 fb e2 54 70",
       "comment": "48-byte H8S format and data-track admission adapters in erased main-image space"
     }
   ]

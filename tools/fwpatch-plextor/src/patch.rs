@@ -4,11 +4,20 @@ use serde::{
     de::{MapAccess, Visitor, value::MapAccessDeserializer},
 };
 use sha1::{Digest, Sha1};
-use std::{fmt, marker::PhantomData, ops::Range};
+use std::{
+    fmt,
+    marker::PhantomData,
+    ops::Range,
+    path::{Path, PathBuf},
+};
+
+use crate::payload::Payload;
 
 const IMAGE_SIZE: usize = 0x80000;
 
 struct ImageLayout {
+    payload_base: Option<u32>,
+    vendor_specific: Option<usize>,
     revisions: &'static [usize],
     checksum: usize,
     checksum_range: Range<usize>,
@@ -16,8 +25,8 @@ struct ImageLayout {
     erased: &'static [Range<usize>],
 }
 
-// Derived struct deserializers also accept sequences. Require JSON objects at
-// both levels, then let Serde reject duplicate, missing, and unknown fields.
+// Derived struct deserializers also accept sequences. Require JSON objects,
+// then let Serde reject duplicate, missing, and unknown fields.
 struct Object<T>(T);
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Object<T> {
@@ -47,6 +56,8 @@ struct DescriptionFields {
     sha1: String,
     revision: String,
     patches: Vec<Object<PatchFields>>,
+    payload: Option<Object<PayloadFields>>,
+    vendor_specific: Option<String>,
     // Default permits omission, while String rejects explicit null/comments
     // of other types. Renaming keeps this a recognized, duplicate-checked key.
     #[serde(default, rename = "comment")]
@@ -57,22 +68,36 @@ struct DescriptionFields {
 #[serde(deny_unknown_fields)]
 struct PatchFields {
     offset: String,
-    old: String,
-    new: String,
+    value: Option<String>,
+    symbol: Option<String>,
+    size: Option<usize>,
     #[serde(default, rename = "comment")]
     _comment: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PayloadFields {
+    hex: PathBuf,
+    map: PathBuf,
+}
+
+enum PatchValue {
+    Bytes(Vec<u8>),
+    Symbol { name: String, size: usize },
+}
+
 struct Patch {
     offset: usize,
-    old: Vec<u8>,
-    new: Vec<u8>,
+    value: PatchValue,
 }
 
 pub struct Description {
     sha1: String,
     revision: String,
     patches: Vec<Patch>,
+    payload: Option<PayloadFields>,
+    vendor_specific: Option<String>,
 }
 
 impl Description {
@@ -82,6 +107,13 @@ impl Description {
 
     pub fn patch_count(&self) -> usize {
         self.patches.len()
+    }
+
+    pub fn payload_paths(&self, description_path: &Path) -> Option<[PathBuf; 2]> {
+        let base = description_path.parent().unwrap_or(Path::new("."));
+        self.payload
+            .as_ref()
+            .map(|files| [base.join(&files.hex), base.join(&files.map)])
     }
 }
 
@@ -132,18 +164,43 @@ pub fn parse_description(bytes: &[u8]) -> Result<Description> {
         let number = index + 1;
         let offset =
             parse_offset(&entry.offset).with_context(|| format!("patch {number} offset"))?;
-        let old = parse_bytes(&entry.old).with_context(|| format!("patch {number} old"))?;
-        let new = parse_bytes(&entry.new).with_context(|| format!("patch {number} new"))?;
+        let value = match (entry.value, entry.symbol, entry.size) {
+            (Some(value), None, None) => PatchValue::Bytes(
+                parse_bytes(&value).with_context(|| format!("patch {number} value"))?,
+            ),
+            (None, Some(name), Some(size @ (3 | 4))) => {
+                ensure!(
+                    !name.is_empty() && !name.bytes().any(|b| b.is_ascii_whitespace()),
+                    "patch {number}: invalid symbol name"
+                );
+                ensure!(
+                    raw.payload.is_some(),
+                    "patch {number}: symbol requires a payload map"
+                );
+                PatchValue::Symbol { name, size }
+            }
+            _ => anyhow::bail!("patch {number}: provide value, or symbol with size 3 or 4"),
+        };
+        patches.push(Patch { offset, value });
+    }
+    if let Some(Object(files)) = &raw.payload {
         ensure!(
-            old.len() == new.len(),
-            "patch {number}: old and new lengths differ"
+            !files.hex.as_os_str().is_empty() && !files.map.as_os_str().is_empty(),
+            "payload HEX and map paths must not be empty"
         );
-        patches.push(Patch { offset, old, new });
+    }
+    if let Some(text) = &raw.vendor_specific {
+        ensure!(
+            text.len() <= 20 && text.bytes().all(|b| (0x20..=0x7e).contains(&b)),
+            "vendor_specific must contain at most 20 printable ASCII bytes"
+        );
     }
     Ok(Description {
         sha1: raw.sha1.to_ascii_lowercase(),
         revision: raw.revision,
         patches,
+        payload: raw.payload.map(|Object(files)| files),
+        vendor_specific: raw.vendor_specific,
     })
 }
 
@@ -173,6 +230,8 @@ fn validate_image(image: &[u8]) -> Result<ImageLayout> {
         && image[0x5ff1c..].starts_with(b"PLEXTOR MUNCHEN");
     let layout = if york || mont {
         ImageLayout {
+            payload_base: Some(0xf80000),
+            vendor_specific: Some(0x1c),
             revisions: &[0x18],
             checksum: 0x79ffe,
             checksum_range: 0..0x79ffe,
@@ -181,6 +240,8 @@ fn validate_image(image: &[u8]) -> Result<ImageLayout> {
         }
     } else if winc || seat || otta {
         ImageLayout {
+            payload_base: None,
+            vendor_specific: Some(0x1001c),
             revisions: &[0x10018],
             checksum: 0x77ffe,
             checksum_range: 0..0x77ffe,
@@ -189,6 +250,8 @@ fn validate_image(image: &[u8]) -> Result<ImageLayout> {
         }
     } else if munc {
         ImageLayout {
+            payload_base: None,
+            vendor_specific: None,
             revisions: &[0x5b99a, 0x5bd3a],
             checksum: 0x5fffe,
             checksum_range: 0x10000..0x5fffe,
@@ -217,7 +280,11 @@ fn validate_image(image: &[u8]) -> Result<ImageLayout> {
     Ok(layout)
 }
 
-pub fn patch_image(original: &[u8], description: &Description) -> Result<PatchedImage> {
+pub fn patch_image(
+    original: &[u8],
+    description: &Description,
+    payload: Option<&Payload>,
+) -> Result<PatchedImage> {
     let actual_sha1: String = Sha1::digest(original)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -228,35 +295,83 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
         description.sha1
     );
     let layout = validate_image(original)?;
+    ensure!(
+        description.payload.is_some() == payload.is_some(),
+        "payload inputs do not match the description"
+    );
     let mut reserved_ranges = layout.erased.to_vec();
     reserved_ranges.push(0..layout.checksum_range.start);
     reserved_ranges.push(layout.checksum..layout.checksum + 2);
     reserved_ranges.push(layout.checksum_range.end..IMAGE_SIZE);
     reserved_ranges.extend(layout.revisions.iter().map(|&offset| offset..offset + 4));
 
-    let mut ranges = Vec::with_capacity(description.patches.len());
+    let mut writes: Vec<(usize, Vec<u8>)> = Vec::new();
+    if let Some(payload) = payload {
+        let base = layout
+            .payload_base
+            .context("payload address mapping is not defined for this firmware layout")?;
+        for (&address, &value) in &payload.bytes {
+            let offset = address
+                .checked_sub(base)
+                .context("payload address precedes the firmware image")?
+                as usize;
+            ensure!(
+                offset < original.len(),
+                "payload address {address:#x} is outside the firmware"
+            );
+            ensure!(
+                original[offset] == 0xff,
+                "payload destination {offset:#x} is not erased ff"
+            );
+            match writes.last_mut() {
+                Some((start, bytes)) if *start + bytes.len() == offset => bytes.push(value),
+                _ => writes.push((offset, vec![value])),
+            }
+        }
+    }
     for (index, patch) in description.patches.iter().enumerate() {
         let number = index + 1;
-        let start = patch.offset;
+        let value = match &patch.value {
+            PatchValue::Bytes(bytes) => bytes.clone(),
+            PatchValue::Symbol { name, size } => {
+                let payload = payload.context("symbol patch requires a payload map")?;
+                let &address = payload
+                    .symbols
+                    .get(name)
+                    .with_context(|| format!("patch {number}: missing map symbol {name}"))?;
+                ensure!(
+                    *size == 4 || address <= 0xffffff,
+                    "patch {number}: symbol address does not fit in {size} bytes"
+                );
+                ensure!(
+                    payload.bytes.contains_key(&address),
+                    "patch {number}: symbol {name} is outside the loaded payload"
+                );
+                address.to_be_bytes()[4 - size..].to_vec()
+            }
+        };
+        writes.push((patch.offset, value));
+    }
+    if let Some(text) = &description.vendor_specific {
+        let offset = layout
+            .vendor_specific
+            .context("vendor-specific inquiry field is not defined for this firmware layout")?;
+        let mut value = vec![b' '; 20];
+        value[..text.len()].copy_from_slice(text.as_bytes());
+        writes.push((offset, value));
+    }
+    let mut ranges = Vec::with_capacity(writes.len());
+    for (start, value) in &writes {
+        let start = *start;
         ensure!(
-            start < original.len() && patch.old.len() <= original.len() - start,
-            "patch {number} at {start:#x}: range is outside the firmware"
+            start < original.len() && value.len() <= original.len() - start,
+            "write at {start:#x}: range is outside the firmware"
         );
-        let end = start + patch.old.len();
+        let end = start + value.len();
         for reserved in &reserved_ranges {
             ensure!(
                 !(start < reserved.end && end > reserved.start),
-                "patch {number} at {start:#x}: overlaps an automatic field or protected firmware region"
-            );
-        }
-        if let Some(mismatch) = original[start..end]
-            .iter()
-            .zip(&patch.old)
-            .position(|(a, b)| a != b)
-        {
-            anyhow::bail!(
-                "patch {number} at {start:#x}: old byte mismatch at {:#x}",
-                start + mismatch
+                "write at {start:#x}: overlaps an automatic field or protected firmware region"
             );
         }
         ranges.push(start..end);
@@ -271,8 +386,8 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
     }
 
     let mut bytes = original.to_vec();
-    for patch in &description.patches {
-        bytes[patch.offset..patch.offset + patch.new.len()].copy_from_slice(&patch.new);
+    for (offset, value) in &writes {
+        bytes[*offset..offset + value.len()].copy_from_slice(value);
     }
     for &offset in layout.revisions {
         bytes[offset..offset + 4].copy_from_slice(description.revision.as_bytes());
@@ -289,6 +404,158 @@ pub fn patch_image(original: &[u8], description: &Description) -> Result<Patched
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+
+    fn mont_image() -> Vec<u8> {
+        let mut bytes = vec![0xff; IMAGE_SIZE];
+        let identification = b"PLEXTOR CD-R   PX-W5224A";
+        bytes[..identification.len()].copy_from_slice(identification);
+        bytes[0x30..0x3c].copy_from_slice(b"PLEXTOR MONT");
+        let sum = bytes[..0x79ffe]
+            .iter()
+            .fold(0x8000u32, |sum, b| sum + u32::from(*b)) as u16;
+        bytes[0x79ffe..0x7a000].copy_from_slice(&sum.to_be_bytes());
+        bytes
+    }
+
+    fn document(original: &[u8], patches: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "sha1": Sha1::digest(original).iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "revision": "G104",
+            "payload": {"hex": "payload/c4.hex", "map": "payload/c4.map"},
+            "patches": patches,
+        })
+    }
+
+    fn description(document: &serde_json::Value) -> Result<Description> {
+        parse_description(&serde_json::to_vec(document)?)
+    }
+
+    #[test]
+    fn accepts_value_or_symbol_and_rejects_obsolete_or_ambiguous_fields() {
+        let original = mont_image();
+        for invalid in [
+            serde_json::json!({"offset": "0x4207"}),
+            serde_json::json!({"offset": "0x4207", "value": ""}),
+            serde_json::json!({"offset": "0x4207", "value": "f"}),
+            serde_json::json!({"offset": "0x4207", "value": 1}),
+            serde_json::json!({"offset": "0x4207", "old": "ff", "new": "42"}),
+            serde_json::json!({"offset": "0x4207", "old": "ff", "value": "42"}),
+            serde_json::json!({"offset": "0x4207", "new": "42"}),
+            serde_json::json!({"offset": "0x4207", "value": "42", "symbol": "handler", "size": 4}),
+            serde_json::json!({"offset": "0x4207", "value": "42", "size": 4}),
+            serde_json::json!({"offset": "0x4207", "symbol": "handler"}),
+            serde_json::json!({"offset": "0x4207", "symbol": "handler", "size": 2}),
+            serde_json::json!({"offset": "0x4207", "symbol": "", "size": 4}),
+        ] {
+            assert!(
+                description(&document(&original, serde_json::json!([invalid]))).is_err(),
+                "accepted {invalid}"
+            );
+        }
+        let valid = document(
+            &original,
+            serde_json::json!([
+                {"offset": "0x4207", "symbol": "handler", "size": 4},
+                {"offset": "0x43bb", "value": "01"}
+            ]),
+        );
+        let parsed = description(&valid).unwrap();
+        assert_eq!(parsed.patch_count(), 2);
+        assert_eq!(
+            parsed
+                .payload_paths(Path::new("firmware/mont.json"))
+                .unwrap(),
+            [
+                PathBuf::from("firmware/payload/c4.hex"),
+                PathBuf::from("firmware/payload/c4.map")
+            ]
+        );
+        let mut without_map = valid.clone();
+        without_map.as_object_mut().unwrap().remove("payload");
+        assert!(description(&without_map).is_err());
+        assert!(parse_description(b"[]").is_err());
+    }
+
+    #[test]
+    fn applies_sparse_payload_symbols_and_padded_inquiry_then_recalculates_checksum() {
+        let original = mont_image();
+        let mut doc = document(
+            &original,
+            serde_json::json!([
+                {"offset": "0x4207", "symbol": "handler", "size": 4},
+                {"offset": "0x511d0", "symbol": "event", "size": 3}
+            ]),
+        );
+        doc["vendor_specific"] = serde_json::json!("SpiralDrive v1.0.0");
+        let payload = Payload {
+            bytes: BTreeMap::from([(0xfdeae0, 0x42), (0xfdeae1, 0x43), (0xfef194, 0x44)]),
+            symbols: BTreeMap::from([("handler".into(), 0xfdeae0), ("event".into(), 0xfef194)]),
+        };
+        let result = patch_image(&original, &description(&doc).unwrap(), Some(&payload)).unwrap();
+        assert_eq!(&result.bytes[0x4207..0x420b], &[0, 0xfd, 0xea, 0xe0]);
+        assert_eq!(&result.bytes[0x511d0..0x511d3], &[0xfe, 0xf1, 0x94]);
+        assert_eq!(result.bytes[0x511cf], original[0x511cf]);
+        assert_eq!(&result.bytes[0x5eae0..0x5eae2], &[0x42, 0x43]);
+        assert_eq!(result.bytes[0x6f194], 0x44);
+        assert_eq!(&result.bytes[0x60000..0x6f194], &original[0x60000..0x6f194]);
+        assert_eq!(&result.bytes[0x18..0x1c], b"G104");
+        assert_eq!(&result.bytes[0x1c..0x30], b"SpiralDrive v1.0.0  ");
+        validate_image(&result.bytes).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_payload_placement_symbols_and_inquiry() {
+        let original = mont_image();
+        let doc = document(
+            &original,
+            serde_json::json!([
+                {"offset": "0x4207", "symbol": "handler", "size": 3}
+            ]),
+        );
+        let parsed = description(&doc).unwrap();
+        let mut payload = Payload {
+            bytes: BTreeMap::from([(0xfdeae0, 0x42)]),
+            symbols: BTreeMap::from([("handler".into(), 0xfdeae0)]),
+        };
+        assert!(patch_image(&original, &parsed, None).is_err());
+        for target in [0xf80000, 0xf7ffff, 0x1000000, 0xff0000, 0xff9ffe] {
+            payload.bytes = BTreeMap::from([(target, 0x42)]);
+            payload.symbols.insert("handler".into(), target);
+            assert!(patch_image(&original, &parsed, Some(&payload)).is_err());
+        }
+        payload.bytes = BTreeMap::from([(0xfdeae0, 0x42)]);
+        for address in [0xfdeae1, 0x1000000] {
+            payload.symbols.insert("handler".into(), address);
+            assert!(patch_image(&original, &parsed, Some(&payload)).is_err());
+        }
+        payload.symbols.clear();
+        assert!(patch_image(&original, &parsed, Some(&payload)).is_err());
+        payload.symbols.insert("handler".into(), 0xfdeae0);
+        for patches in [
+            serde_json::json!([{"offset": "0x5eae0", "value": "00"}]),
+            serde_json::json!([{"offset": "0x50", "value": "00 01"}, {"offset": "0x51", "value": "02"}]),
+            serde_json::json!([{"offset": "0x7ffff", "value": "00 01"}]),
+            serde_json::json!([{"offset": format!("0x{:x}", usize::MAX), "value": "00 01"}]),
+        ] {
+            let parsed = description(&document(&original, patches)).unwrap();
+            assert!(patch_image(&original, &parsed, Some(&payload)).is_err());
+        }
+        for text in ["x".repeat(21), "\n".into(), "é".into()] {
+            let mut invalid = doc.clone();
+            invalid["vendor_specific"] = serde_json::json!(text);
+            assert!(description(&invalid).is_err());
+        }
+        let mut overlap = document(
+            &original,
+            serde_json::json!([{"offset": "0x1c", "value": "00"}]),
+        );
+        overlap["vendor_specific"] = serde_json::json!("SpiralDrive v1.0.0");
+        assert!(patch_image(&original, &description(&overlap).unwrap(), Some(&payload)).is_err());
+        let mut bad_sha = doc;
+        bad_sha["sha1"] = serde_json::json!("0".repeat(40));
+        assert!(patch_image(&original, &description(&bad_sha).unwrap(), Some(&payload)).is_err());
+    }
 
     #[test]
     fn munchen_updates_both_revision_fields_and_protects_its_layout() {
@@ -309,11 +576,12 @@ mod tests {
             revision: "G109".into(),
             patches: vec![Patch {
                 offset: 0x5f560,
-                old: vec![0xff],
-                new: vec![0x42],
+                value: PatchValue::Bytes(vec![0x42]),
             }],
+            payload: None,
+            vendor_specific: None,
         };
-        let result = patch_image(&original, &description).unwrap();
+        let result = patch_image(&original, &description, None).unwrap();
         for offset in [0x5b99a, 0x5bd3a] {
             assert_eq!(&result.bytes[offset..offset + 4], b"G109");
         }
@@ -324,7 +592,7 @@ mod tests {
         assert_eq!(&result.bytes[0x5fffe..0x60000], &expected.to_be_bytes());
         for offset in [0, 0x60000, 0x5b99a, 0x5bd3a, 0x5fffe] {
             description.patches[0].offset = offset;
-            assert!(patch_image(&original, &description).is_err());
+            assert!(patch_image(&original, &description, None).is_err());
         }
     }
 
@@ -356,11 +624,12 @@ mod tests {
                 revision: "T104".into(),
                 patches: vec![Patch {
                     offset: header + 0x50,
-                    old: vec![0xff],
-                    new: vec![0x42],
+                    value: PatchValue::Bytes(vec![0x42]),
                 }],
+                payload: None,
+                vendor_specific: None,
             };
-            let result = patch_image(&original, &description).unwrap();
+            let result = patch_image(&original, &description, None).unwrap();
             assert_eq!(&result.bytes[header + 0x18..header + 0x1c], b"T104");
             assert_eq!(result.bytes[header + 0x50], 0x42);
             assert_eq!(result.bytes[erased_probe], 0xff);
@@ -374,9 +643,8 @@ mod tests {
             );
             for offset in [erased_probe, header + 0x18, checksum_offset] {
                 description.patches[0].offset = offset;
-                description.patches[0].old = vec![original[offset]];
                 assert!(
-                    patch_image(&original, &description)
+                    patch_image(&original, &description, None)
                         .err()
                         .unwrap()
                         .to_string()
@@ -389,7 +657,7 @@ mod tests {
                 .map(|byte| format!("{byte:02x}"))
                 .collect();
             assert!(
-                patch_image(&original, &description)
+                patch_image(&original, &description, None)
                     .err()
                     .unwrap()
                     .to_string()

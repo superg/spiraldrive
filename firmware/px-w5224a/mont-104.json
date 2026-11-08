@@ -1,0 +1,29 @@
+{
+  "sha1": "cd98da11b08065abdd61047883a0124c2b4dfb38",
+  "revision": "G104",
+  "comment": "PX-W5224A MONT 1.04 SpiralDrive C4 raw capture and movement",
+  "payload": {
+    "hex": "../../build/px-w5224a/spiraldrive/payload/c4.hex",
+    "map": "../../build/px-w5224a/spiraldrive/payload/c4.map"
+  },
+  "vendor_specific": "SpiralDrive v1.0.0",
+  "patches": [
+    {
+      "offset": "0x4207",
+      "symbol": "handle_scsi_opcode_c4",
+      "size": 4,
+      "comment": "Route C4 commands to the custom handler"
+    },
+    {
+      "offset": "0x43bb",
+      "value": "01",
+      "comment": "Use the D8 media-admission setting for C4"
+    },
+    {
+      "offset": "0x511d0",
+      "symbol": "process_c4_read_event",
+      "size": 3,
+      "comment": "Route the controller read event through the C4 capture handler"
+    }
+  ]
+}
